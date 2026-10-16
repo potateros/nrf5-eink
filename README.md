@@ -10,7 +10,8 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 
 ```sh
 uv run python -m epd.cli weather --preview out.png   # render only (add --bat 2921 to draw the battery icon)
-uv run python -m epd.cli weather --push              # wipe + send to the display (~1 min)
+uv run python -m epd.cli weather --push              # send to the display (~40 s)
+uv run python -m epd.cli weather --push --wipe       # full clear first (~70 s); ~once a day for ghosting
 uv run python tools/info.py                          # what the device reports (config, battery, clock)
 uv run python tools/testcard.py                      # black/white test card
 ```
@@ -42,7 +43,7 @@ docs/DEVICE.md  everything known about the device
 2. `INIT` → the device notifies config, `slots`, `sid`, `mtu`, `t=<local time> bat=<mV>`.
 3. Render the screen, drawing in the battery level it just reported.
 4. If the device clock is more than 30 s off: `SET_TIME`, then wait 25 s (it triggers a built-in redraw that runs in the background).
-5. `CLEAR`, wait 25 s (**always**: without it the screen is a mess) → `INIT` → black plane (polarity flipped for this panel) → `REFRESH`.
+5. (`--wipe` only) `CLEAR`, wait 25 s → `INIT` → black plane + all-white red plane → `REFRESH` → **hold the connection 30 s** (disconnecting powers the panel down mid-refresh).
 6. `SET_CONFIG` with display_mode = calendar: the **dead-man fallback** (below).
 
 If the data fetch fails but the device is reachable, it shows the firmware's built-in calendar instead of a stale forecast.
