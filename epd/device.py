@@ -15,6 +15,7 @@ CMD_INIT, CMD_CLEAR, CMD_REFRESH, CMD_SLEEP = 0x01, 0x02, 0x05, 0x06
 CMD_SET_TIME, CMD_SET_WEEK_START, CMD_WRITE_IMAGE = 0x20, 0x21, 0x30
 CMD_SET_CONFIG = 0x90
 WIPE_SECONDS = 25
+REFRESH_SECONDS = 30
 CFG_DISPLAY_MODE = 11  # byte offset of display_mode in epd_config_t
 
 MODE_PICTURE, MODE_CALENDAR, MODE_CLOCK = 0, 1, 2
@@ -25,8 +26,9 @@ def _tz_hours() -> int:
 
 
 class EPD:
-    def __init__(self, name_prefix: str = "NRF_EPD", address: str | None = None, invert: bool = True):
-        # Model 0x16 on the NRF_EPD_5E5D unit has inverted polarity vs upstream (0 = white).
+    def __init__(self, name_prefix: str = "NRF_EPD", address: str | None = None, invert: bool = False):
+        # Polarity matches upstream (1 = white). An apparent inversion seen early on was a refresh
+        # frozen in its negative phase by disconnecting too soon (see REFRESH_SECONDS).
         self.name_prefix, self.address, self.invert = name_prefix, address, invert
         self.client: BleakClient | None = None
         self.messages: list[bytes] = []
@@ -95,17 +97,22 @@ class EPD:
     async def show(self, black: bytes, red: bytes | None = None, wipe: bool = False):
         """Push packed planes (1 bit/px, MSB first, 1=white for black plane, 0=red for red plane) and refresh."""
         if wipe:
-            # CLEAR is the only reliable wipe (a built-in calendar redraw leaves a mess), and the
-            # panel needs ~20 s to finish; show() sends INIT again afterwards, which CLEAR requires.
+            # CLEAR is the only reliable wipe (a built-in calendar redraw leaves a mess). It blocks the
+            # firmware for 20+ s, during which writes are acked by the BLE stack but never applied,
+            # so wait until the app itself answers again instead of trusting a fixed delay.
             await self.clear()
-            await asyncio.sleep(WIPE_SECONDS)
-        await self._write(bytes([CMD_INIT]))
+            await asyncio.sleep(WIPE_SECONDS)  # don't send INIT earlier: it resets the panel mid-refresh
+            await self.wait_ready()
+        else:
+            await self.wait_ready()
         if self.invert:
             black = bytes(b ^ 0xFF for b in black)
         await self._write_plane(black, red=False)
         if red is not None:
             await self._write_plane(red, red=True)
         await self._write(bytes([CMD_REFRESH]))
+        # Disconnecting powers the panel down; doing that mid-refresh freezes it on a black phase.
+        await asyncio.sleep(REFRESH_SECONDS)
 
     async def arm_fallback(self, mode: int = MODE_CALENDAR):
         """Flip the stored display mode without redrawing.
@@ -119,6 +126,18 @@ class EPD:
             raise RuntimeError(f"unexpected config {cfg.hex()}")
         cfg[CFG_DISPLAY_MODE] = mode
         await self._write(bytes([CMD_SET_CONFIG]) + bytes(cfg))
+
+    async def wait_ready(self, timeout: float = 90) -> float:
+        """Send INIT until the firmware replies with `mtu=` (proves it's idle and initialised). Returns seconds waited."""
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
+            seen = len(self.messages)
+            await self._write(bytes([CMD_INIT]))
+            for _ in range(20):
+                await asyncio.sleep(0.25)
+                if any(m.startswith(b"mtu=") for m in self.messages[seen:]):
+                    return time.monotonic() - start
+        raise TimeoutError("firmware did not answer INIT")
 
     def clock_drift(self) -> float | None:
         """Device clock minus host clock, in seconds (device reports local time in `t=`)."""
