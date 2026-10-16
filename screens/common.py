@@ -43,24 +43,16 @@ def regular(size: int) -> ImageFont.FreeTypeFont:
 
 @lru_cache(maxsize=None)
 def medium(size: int) -> ImageFont.FreeTypeFont:
-    """Between regular (1-px strokes, too thin) and bold (2-px, too heavy): regular() drawn twice,
-    1 px apart horizontally, so vertical stems are 2 px and horizontals stay 1 px. Draw it through
-    text_mid/text_top/draw_text, which honour the flag."""
-    font = ImageFont.truetype(regular(size).path, regular(size).size)  # own instance for the flag
-    font.medium = True
-    return font
+    """Body text and labels: NicoClean (TRMNL's classic body pixel font, native 16 px). It's evenly
+    weighted all round, between TRMNL Regular (too thin) and Bold (too heavy). Clean at 14-16 px;
+    at <= 13 it gets cramped, so small labels use TRMNL12 Bold, which is equally even."""
+    if size <= 13:
+        return ImageFont.truetype(str(FONTS / "TRMNL12-Bold.ttf"), 12)
+    return ImageFont.truetype(str(FONTS / "NicoClean-Regular.ttf"), 16 if size >= 16 else size)
 
 
 def draw_text(d: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font, anchor: str = "la"):
-    """d.text that renders medium() fonts as a 1-px horizontal double strike."""
-    x, y = xy
-    if getattr(font, "medium", False):
-        if anchor[0] == "r":
-            x -= 1  # keep the extra pixel inside the right edge
-        elif anchor[0] == "m":
-            x -= 0.5
-        d.text((x + 1, y), text, font=font, fill="black", anchor=anchor)
-    d.text((x, y), text, font=font, fill="black", anchor=anchor)
+    d.text(xy, text, font=font, fill="black", anchor=anchor)
 
 
 def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
