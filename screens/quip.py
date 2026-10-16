@@ -18,13 +18,13 @@ from screens.weather import psi_band
 
 CACHE = Path(__file__).resolve().parent.parent / ".cache" / "quip.json"
 MIN_WORDS, MAX_WORDS = 8, 22  # a 5-7-5 haiku in English
-PANEL_W, PANEL_LINES = 400 - 267 - 14 - 8, 7  # note.py side panel at 14 px, minus continuation indent
+PANEL_W, PANEL_LINES = 400 - 200 - 14 - 8, 7  # default: note.py panel at 3/6, 14 px; note passes its width
 
 
-def fits(text: str) -> bool:
+def fits(text: str, width: int = PANEL_W) -> bool:
     """True if the haiku fits the side panel at the larger 14 px size."""
     d = ImageDraw.Draw(Image.new("1", (1, 1)))
-    return len(wrap_lines(d, text, medium(14), PANEL_W)) <= PANEL_LINES
+    return len(wrap_lines(d, text, medium(14), width)) <= PANEL_LINES
 
 SYSTEM = """You write a haiku for a small black-and-white e-ink weather display in a home in Punggol, \
 Singapore.
@@ -80,7 +80,8 @@ def clean(text: str) -> str:
     return "\n".join(lines)
 
 
-def generate(fc: Forecast, data: dict, attempts: int = 4, model: str | None = None) -> tuple[str, str]:
+def generate(fc: Forecast, data: dict, attempts: int = 4, model: str | None = None,
+             width: int = PANEL_W) -> tuple[str, str]:
     """Ask the model until a reply passes validation. Returns (haiku, model).
 
     openrouter/free picks a random free model per request, and some of them are useless here (a
@@ -96,7 +97,7 @@ def generate(fc: Forecast, data: dict, attempts: int = 4, model: str | None = No
             continue
         text = clean(text)
         words, lines = len(text.split()), len(text.splitlines())
-        if lines == 3 and MIN_WORDS <= words <= MAX_WORDS and fits(text):
+        if lines == 3 and MIN_WORDS <= words <= MAX_WORDS and fits(text, width):
             return text, used
         problems.append(f"{used}: {lines} lines, {words} words")
         prompt = base + (f"\n\nA previous answer had {lines} lines and {words} words. "
@@ -104,7 +105,7 @@ def generate(fc: Forecast, data: dict, attempts: int = 4, model: str | None = No
     raise RuntimeError("no usable haiku: " + "; ".join(problems))
 
 
-def get(data: dict, now: dt.datetime | None = None, force: bool = False) -> str | None:
+def get(data: dict, now: dt.datetime | None = None, force: bool = False, width: int = PANEL_W) -> str | None:
     """Cached quip for the current forecast, or None if unavailable."""
     if not llm.configured():
         return None
@@ -114,7 +115,7 @@ def get(data: dict, now: dt.datetime | None = None, force: bool = False) -> str 
     if not force and cached.get("sig") == sig:
         return cached["text"]
     try:
-        text, model = generate(fc, data)
+        text, model = generate(fc, data, width=width)
     except Exception as exc:
         print(f"quip: generation failed ({exc}); using fallback")
         return cached.get("text") if cached.get("sig", "").split("|")[0] == sig.split("|")[0] else None

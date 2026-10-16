@@ -42,7 +42,7 @@ Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config
 | --- | --- | --- |
 | `glance` (layout A) | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line only if PSI > 100 · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, rain %) | Everyday |
 | `rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI if > 100 · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
-| `note` **(default)** | Header · compact now block (icon + temperature, condition, until/haze) spanning 4 of 6 columns · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines | When you want a little personality |
+| `note` **(default)** | Header · compact now block (icon + temperature, condition, until/haze) spanning 3 of 6 columns, haiku panel the other 3 · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines | When you want a little personality |
 | `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
 
 The shared header on `glance` and `rain`: date left; place and time right; `BATT LOW` only when the battery is low.

@@ -1,9 +1,9 @@
 """Layout "note": glance with a compact main block, a side panel for an LLM weather haiku, and a
 6-column hourly strip.
 
-Grid: the hourly strip is 6 columns of 400/6 px. The main block spans exactly 4 of them
-(x 0-267) and the note panel the other 2, so the panel divider lines up with the 4th column
-divider below. Hourly slots keep glance's slot proportions (100x112 -> 67x75).
+Grid: the hourly strip is 6 columns of 400/6 px. The main block spans exactly 3 of them
+(x 0-200) and the haiku panel the other 3, so the panel divider lines up with the 3rd column
+divider below (2/6 and 2.5/6 were tried; 2.5 breaks the grid). Hourly slots keep glance's slot proportions (100x112 -> 67x75).
 """
 import datetime as dt
 
@@ -16,7 +16,8 @@ from screens import quip, weather
 
 COLS = 6
 COL_W = 400 / COLS
-SPLIT = round(4 * COL_W)                       # 267: main | note
+MAIN_COLS = 3                                  # main block width in hourly columns; the rest is the panel
+SPLIT = round(MAIN_COLS * COL_W)               # main | note divider
 MAIN_TOP, HOURLY_TOP, DAYS_TOP = 30, 163, 238  # horizontal rules
 INDENT = 8  # continuation lines of a wrapped haiku line
 
@@ -24,8 +25,13 @@ INDENT = 8  # continuation lines of a wrapped haiku line
 def fetch(lat: float, lon: float) -> dict:
     """Weather data plus the LLM quip (cached; None when unavailable)."""
     data = weather.fetch(lat, lon)
-    data["quip"] = quip.get(data)
+    data["quip"] = quip.get(data, width=panel_text_width())
     return data
+
+
+def panel_text_width() -> int:
+    """Usable haiku line width in the side panel (continuation lines are indented)."""
+    return 400 - SPLIT - 14 - INDENT
 
 
 def note_text(data: dict) -> tuple[str, str | None]:
@@ -42,13 +48,23 @@ def _main(img, d, fc: Forecast):
     icon_mid(img, icons.nea_kind(fc.condition), 38, cy, 56, night=fc.night(fc.now))
     text_mid(d, 74, cy, f"{round(fc.cur['temperature_2m'])}°", bold(56))
 
-    # condition on one line under them: 21 px if it fits, else 16 px
+    # condition under them: one line at 21 px if it fits, else 16 px, wrapping to two lines if needed
     width = SPLIT - 20
-    font = bold(21) if d.textlength(fc.condition, font=bold(21)) <= width else bold(16)
-    text_top(d, 10, 110, wrap(d, fc.condition, font, width, max_lines=1)[0], font)
-    sub = " · ".join(s for s in (fc.until and f"until {fc.until}", fc.psi > 100 and f"Haze PSI {fc.psi}") if s)
-    if sub:
-        text_top(d, 10, 136, wrap(d, sub, medium(14), width, max_lines=1)[0], medium(14))
+    if d.textlength(fc.condition, font=bold(21)) <= width:
+        lines, font, sub_y = [fc.condition], bold(21), 136
+    else:
+        font = bold(16)
+        lines = wrap(d, fc.condition, font, width, max_lines=2)
+        sub_y = 136 if len(lines) == 1 else 144
+    for k, line in enumerate(lines):
+        text_top(d, 10, (110 if len(lines) == 1 else 106) + k * 18, line, font)
+    parts = [s for s in (fc.until and f"until {fc.until}", fc.psi > 100 and f"Haze PSI {fc.psi}") if s]
+    joined = " · ".join(parts)
+    if parts and d.textlength(joined, font=medium(14)) <= width:
+        text_top(d, 10, sub_y, joined, medium(14))
+    else:  # narrow main block: until / haze on their own lines
+        for k, part in enumerate(parts):
+            text_top(d, 10, sub_y - 4 + k * 16, wrap(d, part, medium(14), width, max_lines=1)[0], medium(14))
 
 
 def _note(d, data: dict):
