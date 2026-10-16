@@ -37,9 +37,10 @@ All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (curr
 
 ### Adding a layout
 
-1. Create `screens/<name>.py` with `render(data, now=None, battery_mv=None) -> PIL.Image` (400×300). Reuse `fetch` from `screens.weather` and the helpers in `screens/common.py` (`Forecast`, `canvas`, `bold`, `mono`, `rain_bar`, `hour`).
-2. Register it in `SCREENS` in `epd/cli.py`.
-3. Preview, check it, then push.
+1. Create `screens/<name>.py` with `render(data, now=None, battery_mv=None) -> PIL.Image` (400×300). Reuse `fetch` from `screens.weather` and the helpers in `screens/common.py` (`Forecast`, `canvas`, `bold`, `regular`, `text_mid`, `text_top`, `icon_mid`, `rain_bar`, `hour`).
+2. Position with `text_mid` / `text_top` / `icon_mid`, never raw `d.text` offsets, so rows stay aligned.
+3. Register it in `SCREENS` in `epd/cli.py`.
+4. Preview, check it, then push.
 
 ### Interface for the command centre (`hq`)
 
@@ -100,7 +101,8 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 ## Design decisions (from the owner)
 
 - **Readable from across the desk beats complete.** The dense layout was too hard to read; `glance` keeps body text ≥ 16 px and labels ≥ 12 px, and drops UV, sunset, wind, rain mm.
-- **Pure 1-bit text:** no anti-aliasing (`ImageDraw.fontmode = "1"`). Helvetica Bold for headings and numbers; Menlo for small text (Helvetica Regular breaks up without smoothing).
+- **Pure 1-bit text in a sans serif:** no anti-aliasing (`ImageDraw.fontmode = "1"`), **Verdana / Verdana Bold** (hinted for pixel screens, so even and solid without smoothing; Helvetica breaks up, Menlo is monospace). Verdana Bold only gets 2-px stems at 14 px and ≥ 17 px, so `bold()` renders 15–16 as 17. The `detailed` layout still uses Helvetica Bold + Menlo.
+- **Alignment is computed, not eyeballed:** `text_mid` centres text on its cap height, `text_top` puts the cap top on a line, `icon_mid` centres icon boxes. Rows share a centre line, and the header shares a baseline.
 - Weather first. Air quality appears only when PSI > 100. Battery appears only when LOW.
 - Header is black on white with a rule underneath. White-on-black was hard to read.
 - Divider lines are 1 px.

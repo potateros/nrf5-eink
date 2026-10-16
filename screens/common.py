@@ -6,26 +6,52 @@ from PIL import Image, ImageDraw, ImageFont
 from epd import icons
 from screens.weather import battery_level
 
-HELVETICA = "/System/Library/Fonts/Helvetica.ttc"
-MENLO = "/System/Library/Fonts/Menlo.ttc"
+SANS = "/System/Library/Fonts/Supplemental/Verdana.ttf"
+SANS_BOLD = "/System/Library/Fonts/Supplemental/Verdana Bold.ttf"
 W, H = 400, 300
 
 
 def bold(size: int) -> ImageFont.FreeTypeFont:
-    """Helvetica Bold: headings and big numbers (stays solid without anti-aliasing)."""
-    return ImageFont.truetype(HELVETICA, size, index=1)
+    """Verdana Bold: headings and numbers. Verdana's hinting is built for pixel screens, so it stays
+    even and solid with anti-aliasing off (Helvetica breaks up).
+
+    Verdana's hinting gives Bold 1-px stems at 15-16 px, which look like Regular, so those
+    sizes render at 17 (14 and >= 17 have proper 2-px stems)."""
+    return ImageFont.truetype(SANS_BOLD, 17 if size in (15, 16) else size)
 
 
-def mono(size: int) -> ImageFont.FreeTypeFont:
-    """Menlo: small body text (crisp without anti-aliasing, where Helvetica Regular breaks up)."""
-    return ImageFont.truetype(MENLO, size, index=0)
+def regular(size: int) -> ImageFont.FreeTypeFont:
+    """Verdana: body text."""
+    return ImageFont.truetype(SANS, size)
+
+
+def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
+    """(top, bottom) of a capital letter relative to the draw origin (anchor 'la')."""
+    box = font.getbbox("H")
+    return box[1], box[3]
+
+
+def text_mid(d: ImageDraw.ImageDraw, x: float, cy: float, text: str, font, align: str = "l"):
+    """Draw text with its cap height centred on cy, so text and icons in a row share a centre line."""
+    top, bottom = _cap(font)
+    d.text((x, cy - (top + bottom) / 2), text, font=font, fill="black", anchor=align + "a")
+
+
+def text_top(d: ImageDraw.ImageDraw, x: float, top: float, text: str, font, align: str = "l"):
+    """Draw text so the top of its capitals sits exactly at `top`."""
+    d.text((x, top - _cap(font)[0]), text, font=font, fill="black", anchor=align + "a")
+
+
+def icon_mid(img: Image.Image, kind: str, cx: float, cy: float, size: int, night: bool = False):
+    """Draw a weather icon with its box centred on (cx, cy)."""
+    icons.draw(img, kind, int(cx - size / 2), int(cy - size / 2), size, night=night)
 
 
 def hour(t: dt.datetime) -> str:
     return f"{t:%-I%p}".lower()
 
 
-def fit_bold(d: ImageDraw.ImageDraw, text: str, max_w: float, sizes=(20, 18, 16, 15)) -> ImageFont.FreeTypeFont:
+def fit_bold(d: ImageDraw.ImageDraw, text: str, max_w: float, sizes=(18, 17, 14)) -> ImageFont.FreeTypeFont:
     """Largest bold size from `sizes` that fits `text` in `max_w` pixels."""
     for size in sizes:
         if d.textlength(text, font=bold(size)) <= max_w:
@@ -76,14 +102,16 @@ class Forecast:
 
 
 def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    """White canvas with the shared header: date left; place, time and (only if low) battery right."""
+    """White canvas with the shared header: date left; place, time and (only if low) battery right,
+    both on one baseline."""
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
     d.fontmode = "1"  # no anti-aliasing anywhere: pure black/white glyphs
-    d.text((10, 6), fc.now.strftime("%a %-d %b"), font=bold(17), fill="black")
+    baseline = 21
+    d.text((10, baseline), fc.now.strftime("%a %-d %b"), font=bold(16), fill="black", anchor="ls")
     right = f"{fc.place}  {hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
     if battery_mv and battery_level(battery_mv)[1] == "LOW":
         right = "BATT LOW  " + right
-    d.text((W - 10, 8), right, font=mono(13), fill="black", anchor="ra")
+    d.text((W - 10, baseline), right, font=regular(13), fill="black", anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d
