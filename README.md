@@ -9,31 +9,68 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 ## Quick start
 
 ```sh
-uv run python -m epd.cli weather --preview out.png   # render only (add --bat 2921 to draw the battery icon)
-uv run python -m epd.cli weather --push              # send to the display (~40 s)
-uv run python -m epd.cli weather --push --wipe       # full clear first (~70 s); ~once a day for ghosting
-uv run python tools/info.py                          # what the device reports (config, battery, clock)
-uv run python tools/testcard.py                      # black/white test card
+uv run python -m epd.cli --push                  # push the current layout (config.toml) (~40 s)
+uv run python -m epd.cli --push --wipe           # full clear first (~70 s); ~once a day for ghosting
+uv run python -m epd.cli list                    # layouts; * marks the current one
+uv run python -m epd.cli use rain                # switch the current layout (takes effect on the next push)
+uv run python -m epd.cli rain --preview out.png  # render any layout without pushing (--bat 2800 to show BATT LOW)
+uv run python tools/info.py                      # what the device reports (config, battery, clock)
+uv run python tools/testcard.py                  # black/white test card
 ```
 
 Requirements: macOS with Bluetooth, [uv](https://docs.astral.sh/uv/). Dependencies: `bleak`, `pillow`.
 Close any browser/web-tool connection to the display first; it accepts one central at a time.
 
-## Layout
+## Layouts
+
+Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config.toml) along with the location (Punggol, 1.4043, 103.9021).
+
+| Name | What it shows | Use when |
+| --- | --- | --- |
+| `glance` **(default, layout A)** | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line only if PSI > 100 · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, rain %) | Everyday |
+| `rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI if > 100 · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
+| `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
+
+The shared header on `glance` and `rain`: date left; place and time right; `BATT LOW` only when the battery is low.
+
+All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
+
+### Adding a layout
+
+1. Create `screens/<name>.py` with `render(data, now=None, battery_mv=None) -> PIL.Image` (400×300). Reuse `fetch` from `screens.weather` and the helpers in `screens/common.py` (`Forecast`, `canvas`, `bold`, `mono`, `rain_bar`, `hour`).
+2. Register it in `SCREENS` in `epd/cli.py`.
+3. Preview, check it, then push.
+
+### Interface for the command centre (`hq`)
+
+The command centre (separate project, see below) drives this repo only through the CLI:
+
+| Action | Command (cwd = this repo) |
+| --- | --- |
+| Scheduled push | `uv run python -m epd.cli --push` (exit 0 = pushed; non-zero = failed; one summary line on stdout) |
+| Daily ghosting wipe | `uv run python -m epd.cli --push --wipe` |
+| List layouts / current | `uv run python -m epd.cli list` (`*` marks current) |
+| Change layout | `uv run python -m epd.cli use <name>`, optionally followed by a push to apply it immediately |
+
+## Code
 
 ```
+config.toml   current layout + location (edited by `epd.cli use`)
 epd/
   device.py   BLE client: connect, INIT, image upload (RLE), CLEAR, SET_TIME, SET_CONFIG, clock drift
   image.py    PIL image -> 1-bit planes (+ preview)
   rle.py      RLE codec matching the firmware
   data.py     cached JSON fetcher (data.gov.sg rate-limits hard; falls back to the last good copy)
   icons.py    weather glyphs drawn with PIL primitives (crisp at 1 bit), WMO + NEA text -> icon
-  cli.py      `python -m epd.cli <screen> [--preview PNG] [--push] [--wipe] [--lat/--lon] [--bat mV]`
+  cli.py      layouts registry, push/preview, `use`, `list`
 screens/
-  weather.py  today + tomorrow forecast screen
+  weather.py  data fetch + the `detailed` layout
+  common.py   shared header, fonts, Forecast helper (rain windows, night), rain bars
+  glance.py   layout A
+  rain.py     layout B
 tools/
   info.py, testcard.py
-  experiments/  failed red-colour probes, kept for the record
+  experiments/  red-colour probes from before the refresh-timing fix, kept for the record
 docs/DEVICE.md  everything known about the device
 ```
 
@@ -41,9 +78,9 @@ docs/DEVICE.md  everything known about the device
 
 1. Scan for `NRF_EPD*` (up to 45 s; it advertises intermittently) and connect.
 2. `INIT` → the device notifies config, `slots`, `sid`, `mtu`, `t=<local time> bat=<mV>`.
-3. Render the screen, drawing in the battery level it just reported.
+3. Render the layout, using the battery level it just reported.
 4. If the device clock is more than 30 s off: `SET_TIME`, then wait 25 s (it triggers a built-in redraw that runs in the background).
-5. (`--wipe` only) `CLEAR`, wait 25 s → `INIT` → black plane + all-white red plane → `REFRESH` → **hold the connection 30 s** (disconnecting powers the panel down mid-refresh).
+5. (`--wipe` only: `CLEAR`, wait 25 s.) `INIT` → black plane + all-white red plane → `REFRESH` → **hold the connection 30 s**. Disconnecting powers the panel down, and doing it mid-refresh freezes the screen inverted or black.
 6. `SET_CONFIG` with display_mode = calendar: the **dead-man fallback** (below).
 
 If the data fetch fails but the device is reachable, it shows the firmware's built-in calendar instead of a stale forecast.
@@ -52,42 +89,40 @@ If the data fetch fails but the device is reachable, it shows the firmware's bui
 
 The display can't detect staleness itself. But the firmware redraws its own calendar at **local midnight** when in calendar mode. So every push leaves the picture on screen with calendar mode armed. If pushes stop, the built-in date view takes over at midnight, exactly when the "Today/Tmrw" forecast becomes wrong. Clock mode can't be armed this way: it redraws every minute and would replace the picture immediately. See DEVICE.md §7.
 
-## Weather screen
+## Data notes
 
-Location: **Punggol** (1.4043, 103.9021).
-
-| Area | Content | Source |
-| --- | --- | --- |
-| Header (black on white) | Date · place · "updated h:mm" · battery OK/LOW | local clock, device `bat=` |
-| Now | Icon, big temperature, feels-like; NEA 2-hour forecast for the area ("Cloudy until 5.00 pm"); humidity, wind; one air line (PSI + band) | Open-Meteo current, NEA 2-hr forecast, NEA PSI (nearest region → East) |
-| Hourly | 8 slots, 2 h apart: hour, icon, temperature, chance-of-rain bar + % | Open-Meteo hourly |
-| Today / Tmrw | Icon, high/low, rain chance + mm (bold 14 pt), NEA forecast text, UV, sunset | Open-Meteo daily + NEA 24-h forecast / 4-day outlook |
-
-Data notes:
 - data.gov.sg (`api-open.data.gov.sg/v2/real-time/api/…`) needs a User-Agent and rate-limits at a few requests per ~10 s. Responses are cached in `.cache/`.
-- NEA has no rain percentage. Rain % and mm come from Open-Meteo's model.
+- NEA has no rain percentage. Rain % and the rain windows come from Open-Meteo's hourly model.
 - Open-Meteo's PM2.5 model badly underestimated the Oct 2026 haze (≈83 vs NEA's measured 182 µg/m³), so air quality uses NEA only.
 - The NEA nowcast overrides the model's current condition (the model said "Mostly clear" during showers).
+- Update cadence: NEA nowcast every 30 min, PSI hourly, Open-Meteo models every 1–3 h → **push every 30 min** during the day.
 
-### Design decisions (from the owner)
+## Design decisions (from the owner)
 
-- Weather first. Air quality is one line, not the focus (even during the haze).
-- Header is black text on white with a rule underneath. White on black was hard to read.
-- Battery shows **OK / LOW**, not a percentage. The firmware measures the ~3.0 V regulated rail (≈2.92 V), not the 1100 mAh Li-ion cell, so a % would be fiction. LOW below 2.85 V.
-- Spacing tuned on the real panel: big temp at `y0+3`, "Feels" at `y0+58`, condition title top-aligned with the digits, hourly labels 10 px below the divider, "TMRW" instead of "TOMORROW".
+- **Readable from across the desk beats complete.** The dense layout was too hard to read; `glance` keeps body text ≥ 16 px and labels ≥ 12 px, and drops UV, sunset, wind, rain mm.
+- **Pure 1-bit text:** no anti-aliasing (`ImageDraw.fontmode = "1"`). Helvetica Bold for headings and numbers; Menlo for small text (Helvetica Regular breaks up without smoothing).
+- Weather first. Air quality appears only when PSI > 100. Battery appears only when LOW.
+- Header is black on white with a rule underneath. White-on-black was hard to read.
+- Divider lines are 1 px.
+- Battery is **OK / LOW**, never a percentage: the firmware measures the ~3.0 V regulated rail (≈2.92 V), not the 1100 mAh Li-ion cell. LOW below 2.85 V.
+- In `glance`, the top of the big temperature aligns with the top of the condition text.
+- Pushes skip the full clear (40 s instead of 70 s). A wipe once a day handles ghosting.
 
 ## Panel constraints
 
-- Uploads are **black/white only**. The panel can show red (the firmware's calendar uses it), but every way of uploading red failed. See DEVICE.md §5.3.
-- Every update is a full refresh with flashing. A wipe plus draw takes about 1 minute end to end.
-- 400×300 at 1 bit; no grey. Avoid dithering text. Use solid shapes and hatching.
+- 400×300, black/white uploads. The panel is black/white/red and keeps a separate red RAM that our uploads do reach. Red images haven't been retested since the refresh-timing fix (DEVICE.md §5.3).
+- Every update is a full refresh with flashing, about 40 s end to end including the 30 s hold.
+- No grey: avoid dithering text; use solid shapes, outlines and bars.
 
 ## Ideas / backlog
 
-- [ ] launchd job: push weather every 30–60 min while the Mac is awake
+- [ ] **Command centre `hq`** (separate repo): one `jobs.toml` for all small Mac mini jobs, LaunchAgents generated from it, Ink TUI with status, logs, run-now, pause/resume, run history, and per-job actions such as switching this display's layout. Design in progress.
+- [ ] Schedule: push every 30 min 07:00–23:00, `--wipe` on the first push of the day
+- [ ] Time-aware layout (C): after ~6 pm put tomorrow in focus
+- [ ] Retest red uploads (rain bars or haze alert in red)
 - [ ] Rotating screens: agenda (macOS Calendar / ICS), month calendar, fun slot
 - [ ] Haze alert screen: full-screen warning if PSI > 300
-- [ ] Clock options: firmware clock (flashes every minute, battery weeks to months), or a big-time weather variant pushed every 15 min, or clock mode at night only
+- [ ] Clock options: firmware clock (flashes every minute, battery weeks to months), a big-time variant pushed every 15 min, or clock mode at night only
 - [ ] Fun slots: bus/MRT arrivals (LTA DataMall key), dithered photo, xkcd, GitHub contributions, quote of the day, a Claude-written daily summary
 - [ ] Investigate the firmware's 15 image "slots": could the device rotate stored images on its own?
 - [ ] Measure clock drift over a day (log `t=` vs host time)
