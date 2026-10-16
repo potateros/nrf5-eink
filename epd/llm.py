@@ -24,14 +24,16 @@ def configured() -> bool:
     return bool(load_env().get("OPENROUTER_API_KEY"))
 
 
-def chat(system: str, user: str, max_tokens: int = 4000, timeout: float = 90) -> tuple[str, str]:
-    """Return (reply text, model that answered). Raises on HTTP/API errors or an empty reply."""
+def chat(system: str, user: str, max_tokens: int = 4000, timeout: float = 90,
+         model: str | None = None) -> tuple[str, str]:
+    """Return (reply text, model that answered). `model` overrides OPENROUTER_MODEL.
+    Raises on HTTP/API errors or an empty reply."""
     env = load_env()
     key = env.get("OPENROUTER_API_KEY")
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY not set in .env")
     body = {
-        "model": env.get("OPENROUTER_MODEL") or "openrouter/free",
+        "model": model or env.get("OPENROUTER_MODEL") or "openrouter/free",
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "max_tokens": max_tokens,
         "temperature": 0.9,

@@ -1,7 +1,7 @@
 # nrf5-eink settings. `uv run python -m epd.cli use <screen>` rewrites the screen line.
 
 # Layout pushed when no screen is named: glance | rain | note | detailed
-screen = "glance"
+screen = "note"
 
 # Punggol, Singapore
 lat = 1.4043

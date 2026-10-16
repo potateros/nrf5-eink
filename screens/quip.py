@@ -80,7 +80,7 @@ def clean(text: str) -> str:
     return "\n".join(lines)
 
 
-def generate(fc: Forecast, data: dict, attempts: int = 4) -> tuple[str, str]:
+def generate(fc: Forecast, data: dict, attempts: int = 4, model: str | None = None) -> tuple[str, str]:
     """Ask the model until a reply passes validation. Returns (haiku, model).
 
     openrouter/free picks a random free model per request, and some of them are useless here (a
@@ -90,15 +90,15 @@ def generate(fc: Forecast, data: dict, attempts: int = 4) -> tuple[str, str]:
     prompt, problems = base, []
     for _ in range(attempts):
         try:
-            text, model = llm.chat(SYSTEM, prompt)
+            text, used = llm.chat(SYSTEM, prompt, model=model)
         except Exception as exc:
             problems.append(str(exc))
             continue
         text = clean(text)
         words, lines = len(text.split()), len(text.splitlines())
         if lines == 3 and MIN_WORDS <= words <= MAX_WORDS and fits(text):
-            return text, model
-        problems.append(f"{model}: {lines} lines, {words} words")
+            return text, used
+        problems.append(f"{used}: {lines} lines, {words} words")
         prompt = base + (f"\n\nA previous answer had {lines} lines and {words} words. "
                          "Reply with exactly three short lines (5-7-5 syllables).")
     raise RuntimeError("no usable haiku: " + "; ".join(problems))
