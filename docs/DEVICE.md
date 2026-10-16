@@ -145,9 +145,19 @@ In both cases a normal push afterwards worked fine, so the probes did no lasting
 | --- | --- | --- |
 | Picture (0) | Shows last uploaded image. Firmware never redraws on its own | [verified] |
 | Calendar (1) | Firmware-rendered month calendar (Chinese lunar dates, solar terms, holidays); uses red. Redraws at **local midnight** | [verified] red / [source] midnight |
-| Clock (2) | Firmware-rendered clock + date. **Full refresh every minute** (flashes, drains battery) | [source] |
+| Clock (2) | Firmware-rendered clock + date. **Full refresh every minute** (flashes, drains battery). Upstream's web tool warns before enabling it that clock mode uses full refreshes and isn't recommended long-term. It can't show an uploaded picture: the minute timer redraws the built-in layout | [source] |
 | Time-sync hint | If the RTC reads January 2025 (never set), built-in views show a "sync time" tip | [source] |
 | After reboot | Firmware redraws the current mode immediately; after a watchdog reset it forces calendar | [source] |
+
+### 6.0 Live clock on our own dashboard: not possible with this firmware
+
+| Finding | Status |
+| --- | --- |
+| The only self-updating time is clock mode (built-in layout, full refresh every minute) | [source] |
+| Upstream "partial" code (`PTIN`/`PTL`/`PTOUT` in UC81xx.c) only windows RAM *writes*; refreshes are always full-screen | [source] |
+| [zhyiheihei/EPD-nRF5](https://github.com/zhyiheihei/EPD-nRF5) adds `UC81xx_RefreshPartial` (PTIN + `PT_SCAN=1` window + DRF, ~4 s waveform, BUSY not released on their BWR panel) behind a custom dashboard protocol (`0x40`–`0x46`). It's custom firmware for a 7.5" UC8179, so not usable here without flashing | [online] |
+| Partial refresh via raw `SEND_CMD`/`SEND_DATA` from the host is untested on this unit (our earlier raw probes were invalidated by the cut-short-refresh bug, §5.3) | [open] |
+| Decision (owner): no live clock. The dashboards show a small "last updated" stamp instead | — |
 
 ### 6.1 Clock
 

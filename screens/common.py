@@ -154,16 +154,19 @@ class Forecast:
 
 
 def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    """White canvas with the shared header: date left; place, time and (only if low) battery right,
-    both on one baseline."""
+    """White canvas with the shared header: date + place (+ BATT LOW) on the left, and a small
+    two-line "last updated / 6:29pm" stamp on the right. The stamp is deliberately tiny so it isn't
+    mistaken for a live clock (the panel only changes when a push happens)."""
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
     d.fontmode = "1"  # no anti-aliasing anywhere: pure black/white glyphs
-    baseline = 21
-    d.text((10, baseline), fc.now.strftime("%a %-d %b"), font=bold(21), fill="black", anchor="ls")
-    right = f"{fc.place}  {hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
-    if battery_mv and battery_level(battery_mv)[1] == "LOW":
-        right = "BATT LOW  " + right
-    draw_text(d, (W - 10, baseline), right, medium(16), anchor="rs")
+    baseline, small = 21, medium(12)  # TRMNL12: the smallest font that stays readable on the panel
+    date = fc.now.strftime("%a %-d %b")
+    d.text((10, baseline), date, font=bold(21), fill="black", anchor="ls")
+    place = fc.place + ("  BATT LOW" if battery_mv and battery_level(battery_mv)[1] == "LOW" else "")
+    draw_text(d, (10 + d.textlength(date, font=bold(21)) + 8, baseline), place, small, anchor="ls")
+    stamp = f"{hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
+    draw_text(d, (W - 10, 13), "last updated", small, anchor="rs")
+    draw_text(d, (W - 10, 26), stamp, small, anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d

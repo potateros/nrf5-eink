@@ -21,7 +21,7 @@ Switch with `uv run python -m epd.cli use <name>` (then `--push`, or wait for th
 | ![detailed layout](docs/images/detailed.png) | |
 | Everything at once; too cluttered to read on the panel, kept for reference | |
 
-Exact 1-bit frames as sent to the panel, shown at 2×, with live Punggol data from a hazy, showery October evening. Regenerate with `uv run python tools/screenshots.py`.
+Exact 1-bit frames as sent to the panel, shown at 2×, with live Punggol data from a hazy October evening. Regenerate with `uv run python tools/screenshots.py`.
 
 ## Quick start
 
@@ -50,7 +50,18 @@ Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config
 | `proverb` **(default)** | Same structure as `note`, but the main block spans 4 of 6 columns and the 2/6 panel shows the **proverb of the day** from [`data/proverbs.json`](data/proverbs.json) with its origin | Calm, no network beyond the weather |
 | `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
 
-The shared header on `glance` and `rain`: date left; place and time right; `BATT LOW` only when the battery is low.
+The shared header (`proverb`, `note`, `glance`, `rain`): date with the place beside it (plus `BATT LOW` only when the battery is low) on the left, and a small two-line **"last updated / 9:04pm"** stamp on the right in the smallest readable font (TRMNL12). It's deliberately tiny so it isn't read as a live clock.
+
+### Why there's no live clock
+
+The panel only changes when something pushes a new frame, so the time on our dashboards is the time of the last update, not "now". A clock that ticks every minute is only possible in the firmware's own **clock mode** (`SET_TIME` with mode 2), which comes with trade-offs:
+
+- **It's the firmware's screen, not ours.** Clock mode draws a built-in date/clock layout. It can't be combined with a pushed dashboard: arming it replaces our picture within a minute.
+- **Every minute is a full refresh.** The whole panel flashes each minute (about 1,440 refreshes a day). Upstream warns against leaving it on long-term; the battery lasts roughly weeks to a couple of months instead of much longer.
+- **Partial refresh (redraw only a small clock box) needs new firmware.** One fork, [zhyiheihei/EPD-nRF5](https://github.com/zhyiheihei/EPD-nRF5), adds a ~4 s partial refresh for a 7.5" panel. This unit runs a non-public firmware variant with an unknown update key and no debug probe attached, so flashing custom firmware isn't safe.
+- **Pushing from the Mac every minute isn't practical.** A push takes about 40 s (most of it waiting for the refresh to finish), flashes the whole screen, and keeps Bluetooth busy all day.
+
+So the dashboards show a small "last updated" stamp instead, and the scheduled push (every 30 min) keeps it fresh. See docs/DEVICE.md §6 for the firmware details.
 
 All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
 
@@ -157,7 +168,7 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 - The condition in `glance` wraps onto two lines at 21 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
 - **Alignment is computed, not eyeballed:** `text_mid` centres text on its cap height, `text_top` puts the cap top on a line, `icon_mid` centres icon boxes. Rows share a centre line, and the header shares a baseline.
 - Weather first. Air quality appears only when PSI > 100. Battery appears only when LOW.
-- Header is black on white with a rule underneath. White-on-black was hard to read.
+- Header is black on white with a rule underneath (white-on-black was hard to read). The update time is a small two-line "last updated" stamp, not a clock.
 - Divider lines are 1 px.
 - Battery is **OK / LOW**, never a percentage: the firmware measures the ~3.0 V regulated rail (≈2.92 V), not the 1100 mAh Li-ion cell. LOW below 2.85 V.
 - In `glance`, the big temperature is vertically centred on the weather icon; the condition column is top-aligned beside it.
@@ -177,7 +188,7 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 - [ ] Retest red uploads (rain bars or haze alert in red)
 - [ ] Rotating screens: agenda (macOS Calendar / ICS), month calendar, fun slot
 - [ ] Haze alert screen: full-screen warning if PSI > 300
-- [ ] Clock options: firmware clock (flashes every minute, battery weeks to months), a big-time variant pushed every 15 min, or clock mode at night only
+- [ ] Clock options (see "Why there's no live clock"): firmware clock mode at night only, or partial refresh if custom firmware ever becomes safe to flash
 - [ ] Fun slots: bus/MRT arrivals (LTA DataMall key), dithered photo, xkcd, GitHub contributions, quote of the day, a Claude-written daily summary
 - [ ] Investigate the firmware's 15 image "slots": could the device rotate stored images on its own?
 - [ ] Measure clock drift over a day (log `t=` vs host time)
