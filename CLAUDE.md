@@ -17,7 +17,7 @@ uv run python tools/info.py                           # device config, battery, 
 uv run python tools/screenshots.py                    # regenerate docs/images/*.png for the README
 ```
 
-Workflow the owner expects: render a preview, look at it (Read the PNG, ideally upscaled 2× with NEAREST), fix overflows/alignment, then push and ask them how it looks on the panel. Previews are pixel-exact (`epd.image.preview` runs the same 1-bit conversion as a push).
+Workflow the owner expects: render a preview, look at it (Read the PNG, ideally upscaled 2× with NEAREST), fix overflows/alignment, then **show the owner the PNG (open it on screen) and wait for their OK before pushing a new or changed layout**. After pushing, ask how it looks on the panel. Previews are pixel-exact (`epd.image.preview` runs the same 1-bit conversion as a push). After layout changes, run `tools/screenshots.py` so the README gallery stays current.
 
 ## Architecture
 
@@ -27,7 +27,9 @@ Pipeline: `screens/weather.fetch()` → `screens/<layout>.render()` → `epd.ima
 - `screens/weather.py` holds both the data fetch (Open-Meteo + NEA data.gov.sg, cached via `epd/data.py`) and the legacy `detailed` layout. `glance`/`rain` build on `screens/common.py`: `Forecast` (current/hourly/daily view, NEA nowcast override, rain windows, night), the shared header `canvas()`, fonts, and alignment helpers.
 - `note` layout: `screens/note.fetch` adds `data["quip"]` from `screens/quip.py` (OpenRouter via `epd/llm.py`, key and model in gitignored `.env`; see `.env.example`). The quip is a haiku, validated (3 lines, fits the panel) and cached in `.cache/quip.json` by a forecast signature; failures fall back to `config.toml [note]`. The owner found playful one-liners "cheesy" and asked for haikus.
 - `proverb` layout reuses `note.layout()` (the shared side-panel dashboard; panel width = `main_cols` of 6 hourly columns) with a 2/6 panel and today's entry from `data/proverbs.json` (366 entries keyed `MM-DD`). Any new entry must pass `note.panel_lines(...).fits` at that width.
-- `config.toml` holds the current layout and location. `epd.cli use` rewrites only its `screen =` line; this is also the interface the owner's separate "hq" command centre will call.
+- `screens/common.py` also holds the shared header `canvas()` (date + place left; tiny two-line "last updated / h:mm" stamp right, deliberately not clock-like) and `day_row()` (Today/Tmrw: label, icon, high/low, 24 h rain sparkline, rain %), used by glance/note/proverb. Change them once, and they change everywhere.
+- `config.toml` holds the current layout and location. `epd.cli use` rewrites only its `screen =` line.
+- **Scheduling lives in homelab-hq** (`~/Developer/potateros/homelab-hq/jobs.toml`): `eink-weather` runs `uv run python -m epd.cli --push` every 30 min outside 23:00–07:00, and `eink-wipe` runs `--push --wipe` at 06:55. Scheduled pushes use whatever `config.toml` says. Before long manual BLE sessions run `hq hold eink-weather` (one central at a time), then `hq resume eink-weather`. Logs: `hq logs eink-weather`. Bluetooth access is granted to `~/.bun/bin/bun` (launchd's responsible process), not the terminal. To add or change jobs, use the hq-add-job skill.
 - `epd/device.py` speaks the EPD-nRF5 BLE protocol (service `62750001-…`, write `62750002`, version `62750003`): INIT, CLEAR, RLE image upload (`0x30`, modern flag bits), REFRESH, SET_TIME, SET_CONFIG.
 
 ## Device rules (learned the hard way, see docs/DEVICE.md)

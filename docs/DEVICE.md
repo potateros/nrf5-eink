@@ -8,7 +8,7 @@ Status tags:
 - **[online]** reported by someone else on similar hardware
 - **[open]** unknown / to investigate
 
-Last updated: 2026-10-16
+Last updated: 2026-10-16 (end of first session)
 
 ---
 
@@ -172,7 +172,7 @@ In both cases a normal push afterwards worked fine, so the probes did no lasting
 
 ## 7. How we use it (this repo)
 
-See the [README](../README.md) for the software. `uv run python tools/info.py` dumps everything the device reports (version, decoded config, battery, clock drift).
+See the [README](../README.md) for the software. Pushes are scheduled by homelab-hq (every 30 min 07:00–23:00, wipe at 06:55); see README "Scheduling". `uv run python tools/info.py` dumps everything the device reports (version, decoded config, battery, clock drift).
 
 
 - Host (Mac) renders screens with Pillow and pushes over BLE (bleak). The display is **passive** and never fetches anything on its own.
@@ -188,7 +188,8 @@ See the [README](../README.md) for the software. `uv run python tools/info.py` d
 | --- | --- |
 | Advertises intermittently; scans can take 30–45 s to find it | [verified] |
 | macOS address (CoreBluetooth UUID): `D686F346-CBEE-3785-1FC7-6409492509FF` | [verified] |
-| Only one central at a time — close the web tool before running scripts | [online] |
+| Only one central at a time: close the web tool before running scripts. A manual push during a scheduled one fails, so hold the hq job first | [online] / [verified] |
+| Under launchd, CoreBluetooth permission belongs to the runner (`bun`), not the terminal: `BleakBluetoothNotAvailableError: Bluetooth access is denied` until `bun` is allowed in Privacy & Security → Bluetooth | [verified] 2026-10-16 |
 
 ## 9. Open questions
 

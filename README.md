@@ -6,6 +6,13 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 - **Device reference (hardware, firmware, BLE protocol, quirks):** [docs/DEVICE.md](docs/DEVICE.md)
 - **Device:** `NRF_EPD_5E5D`, a non-public variant of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) firmware (`v1.10-nrf52811`)
 
+## Current state (2026-10-16)
+
+- **On the display:** `proverb`, the default: weather + proverb of the day, with rain sparklines and a small "last updated" stamp.
+- **Updates:** homelab-hq pushes every 30 min from 07:00 to 23:00 and wipes at 06:55. Overnight, or if the Mac stops, the firmware's calendar takes over at midnight.
+- **Five layouts** to switch between (below). The `note` haiku layout needs `OPENROUTER_API_KEY` in `.env` (present on this Mac).
+- **Known limits:** black/white uploads only (red untested since the refresh fix), no live clock (see below), battery reported as OK/LOW only.
+
 ## Available dashboards
 
 Switch with `uv run python -m epd.cli use <name>` (then `--push`, or wait for the next scheduled push). `list` shows the current one.
@@ -61,7 +68,7 @@ The panel only changes when something pushes a new frame, so the time on our das
 - **Partial refresh (redraw only a small clock box) needs new firmware.** One fork, [zhyiheihei/EPD-nRF5](https://github.com/zhyiheihei/EPD-nRF5), adds a ~4 s partial refresh for a 7.5" panel. This unit runs a non-public firmware variant with an unknown update key and no debug probe attached, so flashing custom firmware isn't safe.
 - **Pushing from the Mac every minute isn't practical.** A push takes about 40 s (most of it waiting for the refresh to finish), flashes the whole screen, and keeps Bluetooth busy all day.
 
-So the dashboards show a small "last updated" stamp instead. It only stays fresh if something pushes regularly; nothing is scheduled yet (planned: every 30 min, see the backlog). See docs/DEVICE.md §6 for the firmware details.
+So the dashboards show a small "last updated" stamp instead, kept fresh by the scheduled push every 30 minutes (see [Scheduling](#scheduling-homelab-hq)). See docs/DEVICE.md §6 for the firmware details.
 
 All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
 
@@ -138,6 +145,21 @@ tools/
 docs/DEVICE.md  everything known about the device
 ```
 
+## Scheduling (homelab-hq)
+
+Pushes are scheduled by **homelab-hq** (`~/Developer/potateros/homelab-hq`), the Mac mini's job command centre. Its `jobs.toml` owns two jobs for this repo:
+
+| Job | Command (cwd = this repo) | When |
+| --- | --- | --- |
+| `eink-weather` | `uv run python -m epd.cli --push` | every 30 min, skipped 23:00–07:00, 5 min timeout |
+| `eink-wipe` | `uv run python -m epd.cli --push --wipe` | 06:55 daily (clears overnight ghosting) |
+
+- The jobs push **whatever `config.toml` says**. `epd.cli use <name>` changes what the next scheduled push shows.
+- `hq status` shows last and next runs, `hq logs eink-weather` shows push output (`pushed proverb (battery … mV …)`), and `hq run eink-weather --manual` pushes now.
+- **One Bluetooth connection at a time:** a manual push or experiment while a scheduled push is running will make one of them fail. For longer manual sessions, use `hq hold eink-weather` first and `hq resume eink-weather` after.
+- **Bluetooth permission:** under launchd, macOS asks on behalf of `bun` (hq's runner), not your terminal. If pushes fail with `Bluetooth access is denied by the user`, allow `~/.bun/bin/bun` in System Settings → Privacy & Security → Bluetooth. Upgrading bun may need the grant again. It's granted on this Mac as of 2026-10-16.
+- The Mac must stay awake (display sleep is fine). If pushes stop, the midnight calendar fallback takes over.
+
 ## How a push works
 
 1. Scan for `NRF_EPD*` (up to 45 s; it advertises intermittently) and connect.
@@ -184,8 +206,8 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 
 ## Ideas / backlog
 
-- [ ] **Command centre `hq`** (separate repo): one `jobs.toml` for all small Mac mini jobs, LaunchAgents generated from it, Ink TUI with status, logs, run-now, pause/resume, run history, and per-job actions such as switching this display's layout. Design in progress.
-- [ ] Schedule: push every 30 min 07:00–23:00, `--wipe` on the first push of the day
+- [x] Schedule: push every 30 min 07:00–23:00 and a 06:55 wipe, via [homelab-hq](#scheduling-homelab-hq)
+- [ ] Switch layouts from the hq TUI (per-job action calling `epd.cli use <name>`)
 - [ ] Time-aware layout (C): after ~6 pm put tomorrow in focus
 - [ ] Retest red uploads (rain bars or haze alert in red)
 - [ ] Rotating screens: agenda (macOS Calendar / ICS), month calendar, fun slot
