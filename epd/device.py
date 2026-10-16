@@ -108,8 +108,9 @@ class EPD:
         if self.invert:
             black = bytes(b ^ 0xFF for b in black)
         await self._write_plane(black, red=False)
-        if red is not None:
-            await self._write_plane(red, red=True)
+        # Always rewrite the red RAM too (0xFF = no red): this is a B/W/R panel, and a stale red RAM
+        # shows through as a red overlay unless CLEAR wiped it first.
+        await self._write_plane(red if red is not None else b"\xff" * len(black), red=True)
         await self._write(bytes([CMD_REFRESH]))
         # Disconnecting powers the panel down; doing that mid-refresh freezes it on a black phase.
         await asyncio.sleep(REFRESH_SECONDS)

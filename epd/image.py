@@ -14,8 +14,18 @@ def _pack(bits, w: int, h: int) -> bytes:
     return bytes(out)
 
 
-def to_planes(img: Image.Image, red: bool = True, dither: bool = True) -> tuple[bytes, bytes | None]:
+# Luminance below this counts as black when not dithering. Above 128 thickens anti-aliased
+# strokes slightly, so small text doesn't break up on the panel.
+INK_THRESHOLD = 170
+
+
+def to_planes(img: Image.Image, red: bool = True, dither: bool = True,
+              threshold: int = INK_THRESHOLD) -> tuple[bytes, bytes | None]:
     """Quantise to the panel palette and return (black_plane, red_plane)."""
+    if not red and not dither:
+        lum = img.convert("L").load()
+        w, h = img.size
+        return _pack(lambda x, y: lum[x, y] >= threshold, w, h), None  # 1 = white
     palette = [WHITE, BLACK] + ([RED] if red else [])
     pal = Image.new("P", (1, 1))
     pal.putpalette(sum(palette, ()) + (0, 0, 0) * (256 - len(palette)))
@@ -26,8 +36,8 @@ def to_planes(img: Image.Image, red: bool = True, dither: bool = True) -> tuple[
     return black, redp
 
 
-def preview(img: Image.Image, red: bool = True, dither: bool = True) -> Image.Image:
-    black, redp = to_planes(img, red, dither)
+def preview(img: Image.Image, red: bool = True, dither: bool = True, threshold: int = INK_THRESHOLD) -> Image.Image:
+    black, redp = to_planes(img, red, dither, threshold)
     w, h = img.size
     bw = (w + 7) // 8
     out = Image.new("RGB", (w, h), WHITE)

@@ -108,9 +108,13 @@ RLE: control byte `0x80|(n-3)` + value = run of n (3–130); control `n-1` + n b
 
 | Finding | Status |
 | --- | --- |
-| Black plane works, but polarity is **inverted** vs upstream: send `1 = black` | [verified] |
-| A "red plane" (bit 0 = 1) is written **into the same RAM as black**, overwriting it (screen turned black with white where red was intended) | [verified] |
-| Always wipe with `CLEAR` (0x02) first, wait ~25 s, then send `INIT` again before the image, or the result is a mess | [verified] |
+| **Disconnecting powers the panel down mid-refresh.** A full refresh runs through flash, negative, black and (on red panels) long red phases. Disconnecting ~2 s after `REFRESH` froze the screen in whichever phase it was in: an inverted image, solid black, or blank. **Hold the connection ~30 s after `REFRESH`.** | [verified] 2026-10-16 |
+| Polarity matches upstream: black plane `1 = white`, `0 = black`. (The "inverted polarity" we recorded earlier was a refresh frozen in its negative phase; flipping our data made the frozen negative look right.) | [verified] |
+| A "red plane" (bit 0 = 1) appeared to overwrite black, but that test also disconnected mid-refresh, and red is the last, slowest phase. **Needs retesting with the 30 s hold.** | [open] |
+| **The panel keeps a separate red RAM.** Pushing only the black plane without `CLEAR` showed a dithered red overlay: stale red RAM from earlier tests. Sending an all-`0xFF` red plane (= no red) on every push fixes it, with no `CLEAR` needed. | [verified] 2026-10-16 |
+| Matches the SSD1619A datasheet: `0x24` BW RAM (1 = white), `0x26` red RAM with a "Display Update Control 1" option to invert it; upstream inverts it, so 0 = red. The datasheet also says: *"User should not interrupt this operation to avoid corruption of panel images."* | [source] |
+| `CLEAR` (0x02) is **not** needed per push: black plane + blank red plane + full `REFRESH` held to completion comes out clean (~40 s per push vs ~70 s). Keep an occasional `CLEAR` for ghosting. If you do `CLEAR`, wait ~25 s before sending `INIT` (INIT hardware-resets the panel and would cut the clear's refresh short) | [verified] 2026-10-16 |
+| Rendering: anti-aliased text thresholded at luminance 170 (not 128) keeps small strokes solid on the panel | [verified] |
 | A `SET_TIME` built-in calendar redraw is **not** a good enough wipe; with a 15 s wait the next upload came out messy | [verified] |
 
 ### 5.2 Legacy flags (pre-v1.6)
@@ -124,7 +128,7 @@ Low nibble `0x0F` = black plane, `0x00` = red plane; high nibble `0xF0` on every
 
 ### 5.3 Red on uploads — conclusion so far
 
-Uploading red does **not** work with either flag scheme: the modern red plane lands in the black RAM. Only the firmware's own calendar/clock draw red. [verified]
+**Superseded:** every red test below disconnected ~2 s after `REFRESH`, so none of them let the red phase run. The conclusions are unreliable. Retest the modern red plane with the 30 s hold first. [open]
 
 Raw controller probes via `SEND_CMD`/`SEND_DATA` (0x03/0x04), 2026-10-16. Each ran after `CLEAR` + 25 s + `INIT`, a normal black-plane upload (except probe 2), then `REFRESH`:
 
@@ -133,7 +137,7 @@ Raw controller probes via `SEND_CMD`/`SEND_DATA` (0x03/0x04), 2026-10-16. Each r
 | 1. SSD1619 red RAM | `0x11 03`, `0x44 00 31`, `0x45 00 00 2B 01`, `0x4E 00`, `0x4F 00 00`, `0x26` + red plane | **Blank screen**, black plane lost too [verified] |
 | 2. UC8176 KWR mode | `0x00 0F` (PSR), `0x50 77` (CDI), `0x10` + B/W plane, `0x13` + red plane | **Blank screen** [verified] |
 
-In both cases a normal push afterwards worked fine, so the probes did no lasting harm. Raw access either doesn't reach the panel the way upstream does, or the variant's `REFRESH` re-initialises the controller. **Conclusion:** red needs firmware changes (unknown source, DFU key unknown). Uploads stay black/white. [verified as far as tested]
+In both cases a normal push afterwards worked fine, so the probes did no lasting harm. The blank results are best explained by the cut-short refresh (§5.1), not by the raw commands.
 
 ## 6. Built-in display modes
 
@@ -178,7 +182,7 @@ See the [README](../README.md) for the software. `uv run python tools/info.py` d
 
 ## 9. Open questions
 
-1. What is model `0x16`? Red via uploads looks impossible without new firmware (§5.3).
+1. What is model `0x16`? Does the modern red plane work once the refresh is allowed to finish (§5.1, §5.3)?
 2. What are the 15 "slots", and how do we use them? Could the device rotate stored images on its own?
 3. What is `sid`, and what is config byte 13?
 4. Does calendar mode really switch over at midnight on this variant? (Check the morning after a day without pushes.)
