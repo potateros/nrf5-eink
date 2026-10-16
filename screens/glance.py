@@ -14,30 +14,30 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
 
     # now (y 31-126): icon centred on the block; temperature and condition share a cap-top line
     icon_mid(img, icons.nea_kind(fc.condition), 46, 78, 70, night=fc.night(fc.now))
-    top = 46
+    top = 42
     temp = f"{round(fc.cur['temperature_2m'])}°"
     text_top(d, 88, top, temp, bold(60))
     x2 = 96 + d.textlength(temp, font=bold(60))
-    # condition stays the most prominent text in the column: wrap at 17 px rather than shrink
+    # condition stays the most prominent text in the column: wrap at 21 px rather than shrink
     y = top
-    for line in wrap(d, fc.condition, bold(17), 390 - x2):
-        text_top(d, x2, y, line, bold(17))
-        y += 21
-    y += 3
+    for line in wrap(d, fc.condition, bold(21), 390 - x2):
+        text_top(d, x2, y, line, bold(21))
+        y += 22
+    y += 4
     if fc.until:
-        text_top(d, x2, y, f"until {fc.until}", bold(13))
-        y += 18
+        text_top(d, x2, y, f"until {fc.until}", bold(16))
+        y += 19
     if fc.psi > 100:
-        text_top(d, x2, y, f"Haze: PSI {fc.psi}", bold(13))
+        text_top(d, x2, y, f"Haze: PSI {fc.psi}", bold(16))
     d.line((0, 126, 400, 126), fill="black")
 
     # next 12 h (y 127-238): 4 columns, 3 h apart, every row on a shared centre line
     for n in range(4):
         i, cx = fc.start + 3 * n, 50 + n * 100
         t = fc.times[i]
-        text_mid(d, cx, 142, hour(t), bold(14), align="m")
+        text_mid(d, cx, 142, hour(t), bold(16), align="m")
         icon_mid(img, icons.wmo(fc.hourly["weather_code"][i])[1], cx, 170, 34, night=fc.night(t))
-        text_mid(d, cx, 201, f"{round(fc.hourly['temperature_2m'][i])}°", bold(18), align="m")
+        text_mid(d, cx, 201, f"{round(fc.hourly['temperature_2m'][i])}°", bold(21), align="m")
         rain_bar(d, cx - 30, 218, 60, 7, fc.rain(i))
         if n:
             d.line((n * 100, 132, n * 100, 230), fill="black")

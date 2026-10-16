@@ -57,6 +57,7 @@ The command centre (separate project, see below) drives this repo only through t
 
 ```
 config.toml   current layout + location (edited by `epd.cli use`)
+fonts/        TRMNL pixel fonts + Inter (OFL), see fonts/README.md
 epd/
   device.py   BLE client: connect, INIT, image upload (RLE), CLEAR, SET_TIME, SET_CONFIG, clock drift
   image.py    PIL image -> 1-bit planes (+ preview)
@@ -101,8 +102,8 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 ## Design decisions (from the owner)
 
 - **Readable from across the desk beats complete.** The dense layout was too hard to read; `glance` keeps body text ≥ 16 px and labels ≥ 12 px, and drops UV, sunset, wind, rain mm.
-- **Pure 1-bit, all-bold sans serif text:** no anti-aliasing (`ImageDraw.fontmode = "1"`), **Verdana Bold everywhere** (1-px Regular strokes were too thin on the panel). Verdana is hinted for pixel screens, so it stays even without smoothing (Helvetica breaks up; Menlo is monospace). Verdana Bold only gets 2-px stems at 10–13 px and ≥ 17 px, so `bold()` renders 14 as 13 and 15–16 as 17. The `detailed` layout still uses Helvetica Bold + Menlo.
-- The condition in `glance` wraps onto two lines at 17 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
+- **Fonts: the TRMNL type system** ([fonts/](fonts/README.md), SIL OFL, from the [TRMNL framework](https://github.com/usetrmnl/trmnl-framework)). TRMNL12/16/21 Bold are pixel fonts drawn for 1-bit screens and used at their native sizes only; `bold(size)` snaps to 12/16/21, and from 26 px up it uses Inter Bold. History: Helvetica broke up without anti-aliasing, Menlo was rejected as monospace, Verdana looked too wide and heavy, so we matched what [TRMNL uses on 1-bit screens](https://trmnl.com/framework/docs/3.4/font_family). Rendered with anti-aliasing off. The `detailed` layout still uses Helvetica Bold + Menlo.
+- The condition in `glance` wraps onto two lines at 21 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
 - **Alignment is computed, not eyeballed:** `text_mid` centres text on its cap height, `text_top` puts the cap top on a line, `icon_mid` centres icon boxes. Rows share a centre line, and the header shares a baseline.
 - Weather first. Air quality appears only when PSI > 100. Battery appears only when LOW.
 - Header is black on white with a rule underneath. White-on-black was hard to read.

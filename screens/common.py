@@ -1,28 +1,30 @@
 """Shared drawing helpers for the 1-bit 400x300 layouts (glance, rain)."""
 import datetime as dt
+from functools import lru_cache
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 from epd import icons
 from screens.weather import battery_level
 
-SANS = "/System/Library/Fonts/Supplemental/Verdana.ttf"
-SANS_BOLD = "/System/Library/Fonts/Supplemental/Verdana Bold.ttf"
+FONTS = Path(__file__).resolve().parent.parent / "fonts"
 W, H = 400, 300
 
 
+@lru_cache(maxsize=None)
 def bold(size: int) -> ImageFont.FreeTypeFont:
-    """Verdana Bold: headings and numbers. Verdana's hinting is built for pixel screens, so it stays
-    even and solid with anti-aliasing off (Helvetica breaks up).
+    """The TRMNL type system for 1-bit screens (fonts/README.md).
 
-    Verdana's hinting gives Bold 1-px stems at 14-16 px, which look like Regular. Only 10-13 and
-    >= 17 get 2-px stems, so 14 renders at 13 and 15-16 at 17."""
-    return ImageFont.truetype(SANS_BOLD, {14: 13, 15: 17, 16: 17}.get(size, size))
-
-
-def regular(size: int) -> ImageFont.FreeTypeFont:
-    """Verdana Regular. Not used by the layouts: 1-px strokes are too thin on the panel (owner feedback)."""
-    return ImageFont.truetype(SANS, size)
+    TRMNL12/16/21 are pixel fonts that only render cleanly at their native size, so the requested
+    size snaps to the nearest one: <= 13 -> 12, 14-18 -> 16, 19-25 -> 21. From 26 px up it's Inter
+    Bold, which holds up without anti-aliasing at large sizes."""
+    if size >= 26:
+        font = ImageFont.truetype(str(FONTS / "Inter.ttf"), size)
+        font.set_variation_by_name("Bold")
+        return font
+    native = 12 if size <= 13 else 16 if size <= 18 else 21
+    return ImageFont.truetype(str(FONTS / f"TRMNL{native}-Bold.ttf"), native)
 
 
 def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
@@ -129,10 +131,10 @@ def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw
     d = ImageDraw.Draw(img)
     d.fontmode = "1"  # no anti-aliasing anywhere: pure black/white glyphs
     baseline = 21
-    d.text((10, baseline), fc.now.strftime("%a %-d %b"), font=bold(16), fill="black", anchor="ls")
+    d.text((10, baseline), fc.now.strftime("%a %-d %b"), font=bold(21), fill="black", anchor="ls")
     right = f"{fc.place}  {hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
     if battery_mv and battery_level(battery_mv)[1] == "LOW":
         right = "BATT LOW  " + right
-    d.text((W - 10, baseline), right, font=bold(13), fill="black", anchor="rs")
+    d.text((W - 10, baseline), right, font=bold(16), fill="black", anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d
