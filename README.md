@@ -61,7 +61,7 @@ The panel only changes when something pushes a new frame, so the time on our das
 - **Partial refresh (redraw only a small clock box) needs new firmware.** One fork, [zhyiheihei/EPD-nRF5](https://github.com/zhyiheihei/EPD-nRF5), adds a ~4 s partial refresh for a 7.5" panel. This unit runs a non-public firmware variant with an unknown update key and no debug probe attached, so flashing custom firmware isn't safe.
 - **Pushing from the Mac every minute isn't practical.** A push takes about 40 s (most of it waiting for the refresh to finish), flashes the whole screen, and keeps Bluetooth busy all day.
 
-So the dashboards show a small "last updated" stamp instead, and the scheduled push (every 30 min) keeps it fresh. See docs/DEVICE.md §6 for the firmware details.
+So the dashboards show a small "last updated" stamp instead. It only stays fresh if something pushes regularly; nothing is scheduled yet (planned: every 30 min, see the backlog). See docs/DEVICE.md §6 for the firmware details.
 
 All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
 
