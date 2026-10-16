@@ -24,8 +24,7 @@ def main():
         problems.append("duplicate texts")
     small = 0
     for e in entries:
-        *_, font_lines, fits = note.panel_lines(d, e["text"], e["by"], split, keep_breaks=False)
-        lines, font, *_ = note.panel_lines(d, e["text"], e["by"], split, keep_breaks=False)
+        _, font, _, _, fits = note.panel_lines(d, e["text"], e["by"], split, keep_breaks=False)
         small += font.size == 12
         if not fits:
             problems.append(f'{e["date"]}: does not fit: {e["text"]}')
