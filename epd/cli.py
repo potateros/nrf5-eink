@@ -23,7 +23,8 @@ CONFIG = Path(__file__).resolve().parent.parent / "config.toml"
 SCREENS = {
     "glance": ("screens.glance", "big now, next 12 h in 4 slots, today/tomorrow lines"),
     "rain": ("screens.rain", "rain headline + 24 h chance-of-rain chart"),
-    "note": ("screens.note", "compact now block + quote/LLM side panel, 6 x 2-hourly slots"),
+    "note": ("screens.note", "3/6 now block + 3/6 LLM weather haiku panel, 6 x 2-hourly slots"),
+    "proverb": ("screens.proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
     "detailed": ("screens.weather", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
 }
 ALIASES = {"weather": "detailed"}

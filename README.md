@@ -6,18 +6,22 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 - **Device reference (hardware, firmware, BLE protocol, quirks):** [docs/DEVICE.md](docs/DEVICE.md)
 - **Device:** `NRF_EPD_5E5D`, a non-public variant of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) firmware (`v1.10-nrf52811`)
 
-| `note` (default) | `glance` | `rain` |
-| --- | --- | --- |
-| ![note layout](docs/images/note.png) | ![glance layout](docs/images/glance.png) | ![rain layout](docs/images/rain.png) |
+## Available dashboards
 
-Exact 1-bit frames as sent to the panel, shown at 2×, with live Punggol data from a hazy, showery October afternoon. Regenerate with `uv run python tools/screenshots.py`.
+Switch with `uv run python -m epd.cli use <name>` (then `--push`, or wait for the next scheduled push). `list` shows the current one.
 
-<details>
-<summary><code>detailed</code> (the original dense layout, kept for reference)</summary>
+| `note`: weather + LLM haiku (default) | `proverb`: weather + proverb of the day |
+| --- | --- |
+| ![note layout](docs/images/note.png) | ![proverb layout](docs/images/proverb.png) |
+| 3/6 now block, 3/6 haiku panel, 6 × 2-hourly slots | 4/6 now block, 2/6 proverb panel, 6 × 2-hourly slots |
+| **`glance`**: weather at a glance | **`rain`**: when will it rain? |
+| ![glance layout](docs/images/glance.png) | ![rain layout](docs/images/rain.png) |
+| Big now block, 4 × 3-hourly slots | Rain-window headline, 24 h rain chart |
+| **`detailed`**: the original, dense layout | |
+| ![detailed layout](docs/images/detailed.png) | |
+| Everything at once; too cluttered to read on the panel, kept for reference | |
 
-![detailed layout](docs/images/detailed.png)
-
-</details>
+Exact 1-bit frames as sent to the panel, shown at 2×, with live Punggol data from a hazy, showery October evening. Regenerate with `uv run python tools/screenshots.py`.
 
 ## Quick start
 
@@ -43,11 +47,24 @@ Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config
 | `glance` (layout A) | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line only if PSI > 100 · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, rain %) | Everyday |
 | `rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI if > 100 · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
 | `note` **(default)** | Header · compact now block (icon + temperature, condition, until/haze) spanning 3 of 6 columns, haiku panel the other 3 · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines | When you want a little personality |
+| `proverb` | Same structure as `note`, but the main block spans 4 of 6 columns and the 2/6 panel shows the **proverb of the day** from [`data/proverbs.json`](data/proverbs.json) with its origin | Calm, no network beyond the weather |
 | `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
 
 The shared header on `glance` and `rain`: date left; place and time right; `BATT LOW` only when the battery is low.
 
 All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
+
+### Proverb of the day (`proverb` layout)
+
+[`data/proverbs.json`](data/proverbs.json) holds 366 entries, one per calendar day (`"01-01"` … `"12-31"`, including `"02-29"`):
+
+```json
+{"date": "10-16", "text": "The habit does not make the monk.", "by": "French proverb"}
+```
+
+- 366 unique proverbs from 87 origins, including Malay peribahasa, English weather lore, the Analects, Laozi and Latin sayings. Shuffled so neighbouring days have different origins.
+- Every entry was checked against the real 2/6 panel: it fits with its attribution (361 at 14 px, 5 at 12 px). To edit one, keep it short and run a preview for that date.
+- Origins follow the attributions common in proverb collections. Folk sayings rarely have a verifiable single source; famous-person quotes that are often misattributed were left out.
 
 ### LLM haiku (`note` layout)
 
@@ -86,6 +103,7 @@ The command centre (separate project, see below) drives this repo only through t
 ```
 config.toml   current layout + location (edited by `epd.cli use`)
 fonts/        TRMNL pixel fonts + Inter (OFL), see fonts/README.md
+data/proverbs.json  proverb of the day, one per MM-DD
 epd/
   device.py   BLE client: connect, INIT, image upload (RLE), CLEAR, SET_TIME, SET_CONFIG, clock drift
   image.py    PIL image -> 1-bit planes (+ preview)
@@ -99,7 +117,8 @@ screens/
   common.py   shared header, fonts, Forecast helper (rain windows, night), rain bars
   glance.py   layout A
   rain.py     layout B
-  note.py     6-column variant with the haiku side panel
+  note.py     side-panel dashboard (`layout()`), haiku variant at 3/6
+  proverb.py  proverb variant at 2/6, reads data/proverbs.json
   quip.py     OpenRouter haiku: prompt, validation, cache
 tools/
   info.py, testcard.py
