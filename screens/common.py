@@ -27,6 +27,20 @@ def bold(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONTS / f"TRMNL{native}-Bold.ttf"), native)
 
 
+@lru_cache(maxsize=None)
+def regular(size: int) -> ImageFont.FreeTypeFont:
+    """Lighter TRMNL weight for body text and labels. Snaps like bold(), except 14-15 px renders
+    TRMNL16 Regular at 14, which stays clean off its native size (checked on the panel preview)."""
+    if size >= 26:
+        font = ImageFont.truetype(str(FONTS / "Inter.ttf"), size)
+        font.set_variation_by_name("Regular")
+        return font
+    if size in (14, 15):
+        return ImageFont.truetype(str(FONTS / "TRMNL16-Regular.ttf"), 14)
+    native = 12 if size <= 13 else 16 if size <= 18 else 21
+    return ImageFont.truetype(str(FONTS / f"TRMNL{native}-Regular.ttf"), native)
+
+
 def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
     """(top, bottom) of a capital letter relative to the draw origin (anchor 'la')."""
     box = font.getbbox("H")
@@ -51,14 +65,6 @@ def icon_mid(img: Image.Image, kind: str, cx: float, cy: float, size: int, night
 
 def hour(t: dt.datetime) -> str:
     return f"{t:%-I%p}".lower()
-
-
-def fit_bold(d: ImageDraw.ImageDraw, text: str, max_w: float, sizes=(18, 17, 13)) -> ImageFont.FreeTypeFont:
-    """Largest bold size from `sizes` that fits `text` in `max_w` pixels."""
-    for size in sizes:
-        if d.textlength(text, font=bold(size)) <= max_w:
-            return bold(size)
-    return bold(sizes[-1])
 
 
 def wrap(d: ImageDraw.ImageDraw, text: str, font, max_w: float, max_lines: int = 2) -> list[str]:
@@ -135,6 +141,6 @@ def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw
     right = f"{fc.place}  {hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
     if battery_mv and battery_level(battery_mv)[1] == "LOW":
         right = "BATT LOW  " + right
-    d.text((W - 10, baseline), right, font=bold(16), fill="black", anchor="rs")
+    d.text((W - 10, baseline), right, font=regular(16), fill="black", anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d

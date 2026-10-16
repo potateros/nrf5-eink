@@ -102,14 +102,14 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 ## Design decisions (from the owner)
 
 - **Readable from across the desk beats complete.** The dense layout was too hard to read; `glance` keeps body text ≥ 16 px and labels ≥ 12 px, and drops UV, sunset, wind, rain mm.
-- **Fonts: the TRMNL type system** ([fonts/](fonts/README.md), SIL OFL, from the [TRMNL framework](https://github.com/usetrmnl/trmnl-framework)). TRMNL12/16/21 Bold are pixel fonts drawn for 1-bit screens and used at their native sizes only; `bold(size)` snaps to 12/16/21, and from 26 px up it uses Inter Bold. History: Helvetica broke up without anti-aliasing, Menlo was rejected as monospace, Verdana looked too wide and heavy, so we matched what [TRMNL uses on 1-bit screens](https://trmnl.com/framework/docs/3.4/font_family). Rendered with anti-aliasing off. The `detailed` layout still uses Helvetica Bold + Menlo.
+- **Fonts: the TRMNL type system** ([fonts/](fonts/README.md), SIL OFL, from the [TRMNL framework](https://github.com/usetrmnl/trmnl-framework)). TRMNL12/16/21 Bold are pixel fonts drawn for 1-bit screens and used at their native sizes only; `bold(size)` snaps to 12/16/21, and from 26 px up it uses Inter Bold. History: Helvetica broke up without anti-aliasing, Menlo was rejected as monospace, Verdana looked too wide and heavy, so we matched what [TRMNL uses on 1-bit screens](https://trmnl.com/framework/docs/3.4/font_family). Weights: **bold** only for numbers, the date and the condition; **regular** (`regular(size)`, lighter) for body text and labels. Sub-lines ("until 7pm", haze) use TRMNL16 Regular at 14 px, the one off-native size that still renders cleanly. Rendered with anti-aliasing off. The `detailed` layout still uses Helvetica Bold + Menlo.
 - The condition in `glance` wraps onto two lines at 21 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
 - **Alignment is computed, not eyeballed:** `text_mid` centres text on its cap height, `text_top` puts the cap top on a line, `icon_mid` centres icon boxes. Rows share a centre line, and the header shares a baseline.
 - Weather first. Air quality appears only when PSI > 100. Battery appears only when LOW.
 - Header is black on white with a rule underneath. White-on-black was hard to read.
 - Divider lines are 1 px.
 - Battery is **OK / LOW**, never a percentage: the firmware measures the ~3.0 V regulated rail (≈2.92 V), not the 1100 mAh Li-ion cell. LOW below 2.85 V.
-- In `glance`, the top of the big temperature aligns with the top of the condition text.
+- In `glance`, the big temperature is vertically centred on the weather icon; the condition column is top-aligned beside it.
 - Pushes skip the full clear (40 s instead of 70 s). A wipe once a day handles ghosting.
 
 ## Panel constraints
