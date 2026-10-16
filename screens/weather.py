@@ -104,7 +104,7 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
 
     # header
     hb = S(24)
-    d.line((0, hb, w, hb), fill="black", width=max(1, S(2)))
+    d.line((0, hb, w, hb), fill="black", width=1)
     d.text((S(8), hb // 2), now.strftime("%A %-d %B"), font=F(17, True), fill="black", anchor="lm")
     right = w - S(8)
     if battery_mv:
@@ -138,7 +138,7 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
 
     # hourly strip: next 8 slots, 2h apart
     y1 = y0 + S(82)
-    d.line((0, y1, w, y1), fill="black", width=max(1, S(2)))
+    d.line((0, y1, w, y1), fill="black", width=1)
     times = [dt.datetime.fromisoformat(t) for t in hourly["time"]]
     start = next(i for i, t in enumerate(times) if t > now)
     idx = [start + 2 * n for n in range(8) if start + 2 * n < len(times)]
@@ -163,7 +163,7 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
 
     # today / tomorrow
     y2 = y1 + S(96)
-    d.line((0, y2, w, y2), fill="black", width=max(1, S(2)))
+    d.line((0, y2, w, y2), fill="black", width=1)
     texts = [data.get("today_text"), (data.get("outlook") or [{}])[0].get("forecast", {}).get("summary")]
     half = w // 2
     for n, title in enumerate(("TODAY", "TMRW")):
