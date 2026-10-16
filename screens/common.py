@@ -15,13 +15,13 @@ def bold(size: int) -> ImageFont.FreeTypeFont:
     """Verdana Bold: headings and numbers. Verdana's hinting is built for pixel screens, so it stays
     even and solid with anti-aliasing off (Helvetica breaks up).
 
-    Verdana's hinting gives Bold 1-px stems at 15-16 px, which look like Regular, so those
-    sizes render at 17 (14 and >= 17 have proper 2-px stems)."""
-    return ImageFont.truetype(SANS_BOLD, 17 if size in (15, 16) else size)
+    Verdana's hinting gives Bold 1-px stems at 14-16 px, which look like Regular. Only 10-13 and
+    >= 17 get 2-px stems, so 14 renders at 13 and 15-16 at 17."""
+    return ImageFont.truetype(SANS_BOLD, {14: 13, 15: 17, 16: 17}.get(size, size))
 
 
 def regular(size: int) -> ImageFont.FreeTypeFont:
-    """Verdana: body text."""
+    """Verdana Regular. Not used by the layouts: 1-px strokes are too thin on the panel (owner feedback)."""
     return ImageFont.truetype(SANS, size)
 
 
@@ -51,12 +51,31 @@ def hour(t: dt.datetime) -> str:
     return f"{t:%-I%p}".lower()
 
 
-def fit_bold(d: ImageDraw.ImageDraw, text: str, max_w: float, sizes=(18, 17, 14)) -> ImageFont.FreeTypeFont:
+def fit_bold(d: ImageDraw.ImageDraw, text: str, max_w: float, sizes=(18, 17, 13)) -> ImageFont.FreeTypeFont:
     """Largest bold size from `sizes` that fits `text` in `max_w` pixels."""
     for size in sizes:
         if d.textlength(text, font=bold(size)) <= max_w:
             return bold(size)
     return bold(sizes[-1])
+
+
+def wrap(d: ImageDraw.ImageDraw, text: str, font, max_w: float, max_lines: int = 2) -> list[str]:
+    """Greedy word wrap into at most `max_lines`; the last line gets an ellipsis if text remains."""
+    lines, cur = [], ""
+    for word in text.split():
+        candidate = f"{cur} {word}".strip()
+        if cur and d.textlength(candidate, font=font) > max_w:
+            lines.append(cur)
+            cur = word
+        else:
+            cur = candidate
+    lines.append(cur)
+    if len(lines) > max_lines:
+        last = " ".join(lines[max_lines - 1:])
+        while d.textlength(last + "…", font=font) > max_w and " " in last:
+            last = last.rsplit(" ", 1)[0]
+        lines = lines[:max_lines - 1] + [last + "…"]
+    return lines
 
 
 def rain_bar(d: ImageDraw.ImageDraw, x: float, y: float, w: float, h: float, pct: int):
@@ -79,6 +98,8 @@ class Forecast:
         self.place = data.get("nowcast", ("Singapore",))[0]
         if "nowcast" in data:  # NEA's area nowcast beats the model's current guess
             self.condition, period = data["nowcast"][1], data["nowcast"][2]
+            # "Partly Cloudy (Day)" -> "Partly Cloudy": the sun/moon icon already says day or night
+            self.condition = self.condition.replace(" (Day)", "").replace(" (Night)", "")
             self.until = period.split(" to ")[-1].replace(".00", "").replace(" ", "")  # "7.00 pm" -> "7pm"
         else:
             self.condition, self.until = icons.wmo(self.cur["weather_code"])[0], None
@@ -112,6 +133,6 @@ def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw
     right = f"{fc.place}  {hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
     if battery_mv and battery_level(battery_mv)[1] == "LOW":
         right = "BATT LOW  " + right
-    d.text((W - 10, baseline), right, font=regular(13), fill="black", anchor="rs")
+    d.text((W - 10, baseline), right, font=bold(13), fill="black", anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d

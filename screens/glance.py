@@ -4,8 +4,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import (Forecast, bold, canvas, fit_bold, hour, icon_mid, rain_bar, regular, text_mid,
-                            text_top)
+from screens.common import Forecast, bold, canvas, hour, icon_mid, rain_bar, text_mid, text_top, wrap
 from screens.weather import fetch  # noqa: F401  (same data as the detailed screen)
 
 
@@ -19,11 +18,17 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
     temp = f"{round(fc.cur['temperature_2m'])}°"
     text_top(d, 88, top, temp, bold(60))
     x2 = 96 + d.textlength(temp, font=bold(60))
-    text_top(d, x2, top, fc.condition, fit_bold(d, fc.condition, 390 - x2))
+    # condition stays the most prominent text in the column: wrap at 17 px rather than shrink
+    y = top
+    for line in wrap(d, fc.condition, bold(17), 390 - x2):
+        text_top(d, x2, y, line, bold(17))
+        y += 21
+    y += 3
     if fc.until:
-        text_top(d, x2, top + 26, f"until {fc.until}", regular(15))
+        text_top(d, x2, y, f"until {fc.until}", bold(13))
+        y += 18
     if fc.psi > 100:
-        text_top(d, x2, top + 48, f"Haze: PSI {fc.psi}", bold(14))
+        text_top(d, x2, y, f"Haze: PSI {fc.psi}", bold(13))
     d.line((0, 126, 400, 126), fill="black")
 
     # next 12 h (y 127-238): 4 columns, 3 h apart, every row on a shared centre line
@@ -45,5 +50,5 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
         icon_mid(img, icons.wmo(fc.daily["weather_code"][k])[1], 92, cy, 26)
         hi, lo = round(fc.daily["temperature_2m_max"][k]), round(fc.daily["temperature_2m_min"][k])
         text_mid(d, 118, cy, f"{hi}° / {lo}°", bold(17))
-        text_mid(d, 390, cy, f"rain {fc.daily['precipitation_probability_max'][k]}%", regular(15), align="r")
+        text_mid(d, 390, cy, f"rain {fc.daily['precipitation_probability_max'][k]}%", bold(15), align="r")
     return img
