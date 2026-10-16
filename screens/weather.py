@@ -8,7 +8,8 @@ from epd import icons
 from epd.data import fetch_json
 
 NEA = "https://api-open.data.gov.sg/v2/real-time/api/"
-FONT = "/System/Library/Fonts/Helvetica.ttc"
+FONT = "/System/Library/Fonts/Helvetica.ttc"        # bold: headings and big numbers
+BODY_FONT = "/System/Library/Fonts/Menlo.ttc"      # regular small text: crisp without anti-aliasing
 COMPASS = "N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split()
 
 
@@ -87,9 +88,13 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
     now = now or dt.datetime.now()
     k = min(w / 400, h / 300)
     S = lambda v: int(round(v * k))
-    F = lambda size, bold=False: ImageFont.truetype(FONT, S(size), index=1 if bold else 0)
+    def F(size, bold=False):
+        if bold:
+            return ImageFont.truetype(FONT, S(size), index=1)
+        return ImageFont.truetype(BODY_FONT, S(size - 1), index=0)  # Menlo runs large; one size down
     img = Image.new("RGB", (w, h), "white")
     d = ImageDraw.Draw(img)
+    d.fontmode = "1"  # no anti-aliasing: glyphs are pure black/white, crisp on the 1-bit panel
 
     def fit(text, x, y, font, max_w, **kw):
         while text and d.textlength(text, font=font) > max_w:
@@ -118,21 +123,23 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
     sub = None
     if "nowcast" in data:  # NEA's observed-area nowcast beats the model's guess
         _, label, period = data["nowcast"]
-        kind, sub = icons.nea_kind(label), "until " + period.split(" to ")[-1]
+        end = period.split(" to ")[-1].replace(".00", "").replace(" ", "")  # "7.00 pm" -> "7pm"
+        kind, sub = icons.nea_kind(label), f"until {end}"
     icons.draw(img, kind, S(6), y0 + S(6), S(64), night=is_night(now) and kind in ("clear", "partly"))
     temp = f"{round(cur['temperature_2m'])}°"
     d.text((S(78), y0 + S(3)), temp, font=F(56, True), fill="black")
     digit_top = d.textbbox((S(78), y0 + S(3)), temp, font=F(56, True))[1]
     d.text((S(82), y0 + S(58)), f"Feels {round(cur['apparent_temperature'])}°", font=F(13), fill="black")
     x2, cw = S(196), w - S(196) - S(6)
-    title = label + (f"  {sub}" if sub else "")
+    title = label
     title_y = digit_top - d.textbbox((0, 0), title, font=F(16, True))[1]  # glyph tops line up with the digits
     fit(title, x2, title_y, F(16, True), cw)
     wind_dir = COMPASS[int((cur["wind_direction_10m"] % 360) / 22.5 + 0.5) % 16]
-    lines = [f"Humidity {cur['relative_humidity_2m']}%", f"Wind {wind_dir} {round(cur['wind_speed_10m'])} km/h"]
+    lines = ([sub] if sub else []) + [
+        f"RH {cur['relative_humidity_2m']}% · {wind_dir} {round(cur['wind_speed_10m'])} km/h"]
     if "air" in data:
         psi, pm = data["air"]
-        lines.append(f"Air: PSI {psi} ({psi_band(psi).lower()})")
+        lines.append(f"PSI {psi} {psi_band(psi).lower()}")
     for i, line in enumerate(lines):
         fit(line, x2, title_y + S(22 + i * 17), F(13), cw)
 
@@ -179,7 +186,7 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
         d.text((tx + d.textlength(hi, font=F(26, True)) + S(4), y2 + S(25)), f"/ {round(daily['temperature_2m_min'][n])}°", font=F(14), fill="black")
         rain = f"Rain {daily['precipitation_probability_max'][n]}% · {daily['precipitation_sum'][n]:.0f} mm"
         fit(rain, tx, y2 + S(43), F(14, True), half - S(56))
-        fit(text, x, y2 + S(64), F(13), half - S(16))
-        fit(f"UV {daily['uv_index_max'][n]:.0f}  ·  Sunset {sunset[n]:%-I:%M}", x, y2 + S(80), F(12), half - S(16))
+        fit(text, x, y2 + S(62), F(13), half - S(16))
+        fit(f"UV {daily['uv_index_max'][n]:.0f} · Sunset {sunset[n]:%-I:%M}", x, y2 + S(76), F(12), half - S(16))
     d.line((half, y2 + S(6), half, h - S(4)), fill="black", width=1)
     return img

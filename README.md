@@ -28,7 +28,7 @@ epd/
   rle.py      RLE codec matching the firmware
   data.py     cached JSON fetcher (data.gov.sg rate-limits hard; falls back to the last good copy)
   icons.py    weather glyphs drawn with PIL primitives (crisp at 1 bit), WMO + NEA text -> icon
-  cli.py      `python -m epd.cli <screen> [--preview PNG] [--push] [--no-wipe] [--lat/--lon] [--bat mV]`
+  cli.py      `python -m epd.cli <screen> [--preview PNG] [--push] [--wipe] [--lat/--lon] [--bat mV]`
 screens/
   weather.py  today + tomorrow forecast screen
 tools/
