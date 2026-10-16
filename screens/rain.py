@@ -4,7 +4,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import Forecast, bold, canvas, hour, icon_mid, regular, text_mid, text_top
+from screens.common import Forecast, bold, canvas, hour, icon_mid, medium, text_mid, text_top
 from screens.weather import fetch  # noqa: F401
 
 
@@ -25,8 +25,8 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
 
     text_top(d, 10, 42, headline(fc), bold(26))
     if fc.psi > 100:
-        text_top(d, 390, 42, f"PSI {fc.psi}", regular(16), align="r")
-    text_top(d, 10, 78, f"Now {round(fc.cur['temperature_2m'])}° · {fc.condition.lower()}", regular(16))
+        text_top(d, 390, 42, f"PSI {fc.psi}", medium(16), align="r")
+    text_top(d, 10, 78, f"Now {round(fc.cur['temperature_2m'])}° · {fc.condition.lower()}", medium(16))
 
     # 24 h chance-of-rain bars, dotted 50% line
     gx, gy, gw, gh = 30, 108, 360, 120
@@ -48,6 +48,6 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
         x, cy = 10 + n * 200, 277
         icon_mid(img, icons.wmo(fc.daily["weather_code"][k])[1], x + 16, cy, 32)
         hi, lo = round(fc.daily["temperature_2m_max"][k]), round(fc.daily["temperature_2m_min"][k])
-        text_mid(d, x + 40, cy - 9, label, regular(12))
+        text_mid(d, x + 40, cy - 9, label, medium(12))
         text_mid(d, x + 40, cy + 8, f"{hi}° / {lo}°", bold(16))
     return img

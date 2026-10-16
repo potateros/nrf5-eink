@@ -41,6 +41,28 @@ def regular(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONTS / f"TRMNL{native}-Regular.ttf"), native)
 
 
+@lru_cache(maxsize=None)
+def medium(size: int) -> ImageFont.FreeTypeFont:
+    """Between regular (1-px strokes, too thin) and bold (2-px, too heavy): regular() drawn twice,
+    1 px apart horizontally, so vertical stems are 2 px and horizontals stay 1 px. Draw it through
+    text_mid/text_top/draw_text, which honour the flag."""
+    font = ImageFont.truetype(regular(size).path, regular(size).size)  # own instance for the flag
+    font.medium = True
+    return font
+
+
+def draw_text(d: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font, anchor: str = "la"):
+    """d.text that renders medium() fonts as a 1-px horizontal double strike."""
+    x, y = xy
+    if getattr(font, "medium", False):
+        if anchor[0] == "r":
+            x -= 1  # keep the extra pixel inside the right edge
+        elif anchor[0] == "m":
+            x -= 0.5
+        d.text((x + 1, y), text, font=font, fill="black", anchor=anchor)
+    d.text((x, y), text, font=font, fill="black", anchor=anchor)
+
+
 def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
     """(top, bottom) of a capital letter relative to the draw origin (anchor 'la')."""
     box = font.getbbox("H")
@@ -50,12 +72,12 @@ def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
 def text_mid(d: ImageDraw.ImageDraw, x: float, cy: float, text: str, font, align: str = "l"):
     """Draw text with its cap height centred on cy, so text and icons in a row share a centre line."""
     top, bottom = _cap(font)
-    d.text((x, cy - (top + bottom) / 2), text, font=font, fill="black", anchor=align + "a")
+    draw_text(d, (x, cy - (top + bottom) / 2), text, font, anchor=align + "a")
 
 
 def text_top(d: ImageDraw.ImageDraw, x: float, top: float, text: str, font, align: str = "l"):
     """Draw text so the top of its capitals sits exactly at `top`."""
-    d.text((x, top - _cap(font)[0]), text, font=font, fill="black", anchor=align + "a")
+    draw_text(d, (x, top - _cap(font)[0]), text, font, anchor=align + "a")
 
 
 def icon_mid(img: Image.Image, kind: str, cx: float, cy: float, size: int, night: bool = False):
@@ -141,6 +163,6 @@ def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw
     right = f"{fc.place}  {hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
     if battery_mv and battery_level(battery_mv)[1] == "LOW":
         right = "BATT LOW  " + right
-    d.text((W - 10, baseline), right, font=regular(16), fill="black", anchor="rs")
+    draw_text(d, (W - 10, baseline), right, medium(16), anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d
