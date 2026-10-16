@@ -1,8 +1,14 @@
 # nrf5-eink settings. `uv run python -m epd.cli use <screen>` rewrites the screen line.
 
-# Layout pushed when no screen is named: glance | rain | detailed
+# Layout pushed when no screen is named: glance | rain | note | detailed
 screen = "glance"
 
 # Punggol, Singapore
 lat = 1.4043
 lon = 103.9021
+
+# Fallback side-panel text for the "note" layout, used when the LLM haiku is unavailable
+# (no OPENROUTER_API_KEY in .env, model busy, or a reply that doesn't fit)
+[note]
+text = "The best time to plant a tree was 20 years ago. The second best time is now."
+by = "Chinese proverb"

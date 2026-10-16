@@ -81,6 +81,15 @@ def hour(t: dt.datetime) -> str:
     return f"{t:%-I%p}".lower()
 
 
+def wrap_lines(d: ImageDraw.ImageDraw, text: str, font, max_w: float) -> list[tuple[str, bool]]:
+    """Wrap keeping the text's own line breaks (e.g. a haiku). Returns (line, is_continuation)."""
+    out = []
+    for para in text.splitlines():
+        for k, line in enumerate(wrap(d, para, font, max_w, max_lines=99)):
+            out.append((line, k > 0))
+    return out
+
+
 def wrap(d: ImageDraw.ImageDraw, text: str, font, max_w: float, max_lines: int = 2) -> list[str]:
     """Greedy word wrap into at most `max_lines`; the last line gets an ellipsis if text remains."""
     lines, cur = [], ""

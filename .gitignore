@@ -3,3 +3,4 @@
 __pycache__/
 *.png
 !docs/images/*.png
+.env

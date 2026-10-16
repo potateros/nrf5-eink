@@ -42,11 +42,26 @@ Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config
 | --- | --- | --- |
 | `glance` **(default, layout A)** | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line only if PSI > 100 · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, rain %) | Everyday |
 | `rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI if > 100 · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
+| `note` | Header · compact now block (icon + temperature, condition, until/haze) spanning 4 of 6 columns · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines | When you want a little personality |
 | `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
 
 The shared header on `glance` and `rain`: date left; place and time right; `BATT LOW` only when the battery is low.
 
 All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
+
+### LLM haiku (`note` layout)
+
+The side panel shows a haiku about today's forecast, written by a model on [OpenRouter](https://openrouter.ai/).
+
+1. `cp .env.example .env` (already done on the Mac mini) and paste your key: `OPENROUTER_API_KEY=sk-or-...`. `.env` is gitignored.
+2. `OPENROUTER_MODEL` defaults to `openrouter/free` ([Free Models Router](https://openrouter.ai/docs/guides/routing/routers/free-router): a random free model per request, rate limited).
+3. Preview: `uv run python -m epd.cli note --preview out.png` prints the haiku and which model wrote it.
+
+How it works (`screens/quip.py`):
+- **Prompt facts:** now, condition and until-time, feels-like, rain window and 2-hourly chances, today/tomorrow (incl. NEA text and UV), PSI with an N95 note above 200. The model must weave the one practical thing (umbrella, mask, shade/water) into a quiet image: 5-7-5, no puns, no emoji.
+- **Validation:** exactly 3 lines, 8–22 words, and it must fit the panel at 14 px. Otherwise it retries once with feedback, then falls back to `[note]` in `config.toml`.
+- **Caching:** `.cache/quip.json`, regenerated only when the situation changes (condition, until-time, rain window, haze band, or a new 3-hour block). Delete the file to force a new haiku.
+- **Panel:** keeps the haiku's line breaks, indents wrapped continuations, and auto-fits (NicoClean 14 px, else TRMNL12 at 12 px).
 
 ### Adding a layout
 
@@ -75,6 +90,7 @@ epd/
   device.py   BLE client: connect, INIT, image upload (RLE), CLEAR, SET_TIME, SET_CONFIG, clock drift
   image.py    PIL image -> 1-bit planes (+ preview)
   rle.py      RLE codec matching the firmware
+  llm.py      OpenRouter chat client (stdlib), reads .env
   data.py     cached JSON fetcher (data.gov.sg rate-limits hard; falls back to the last good copy)
   icons.py    weather glyphs drawn with PIL primitives (crisp at 1 bit), WMO + NEA text -> icon
   cli.py      layouts registry, push/preview, `use`, `list`
@@ -83,6 +99,8 @@ screens/
   common.py   shared header, fonts, Forecast helper (rain windows, night), rain bars
   glance.py   layout A
   rain.py     layout B
+  note.py     6-column variant with the haiku side panel
+  quip.py     OpenRouter haiku: prompt, validation, cache
 tools/
   info.py, testcard.py
   screenshots.py  regenerates docs/images/<layout>.png for this README
