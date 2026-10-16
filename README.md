@@ -10,10 +10,10 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 
 Switch with `uv run python -m epd.cli use <name>` (then `--push`, or wait for the next scheduled push). `list` shows the current one.
 
-| `note`: weather + LLM haiku (default) | `proverb`: weather + proverb of the day |
+| `proverb`: weather + proverb of the day (default) | `note`: weather + LLM haiku |
 | --- | --- |
-| ![note layout](docs/images/note.png) | ![proverb layout](docs/images/proverb.png) |
-| 3/6 now block, 3/6 haiku panel, 6 × 2-hourly slots | 4/6 now block, 2/6 proverb panel, 6 × 2-hourly slots |
+| ![proverb layout](docs/images/proverb.png) | ![note layout](docs/images/note.png) |
+| 4/6 now block, 2/6 proverb panel, 6 × 2-hourly slots | 3/6 now block, 3/6 haiku panel, 6 × 2-hourly slots |
 | **`glance`**: weather at a glance | **`rain`**: when will it rain? |
 | ![glance layout](docs/images/glance.png) | ![rain layout](docs/images/rain.png) |
 | Big now block, 4 × 3-hourly slots | Rain-window headline, 24 h rain chart |
@@ -46,8 +46,8 @@ Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config
 | --- | --- | --- |
 | `glance` (layout A) | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line only if PSI > 100 · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, rain %) | Everyday |
 | `rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI if > 100 · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
-| `note` **(default)** | Header · compact now block (icon + temperature, condition, until/haze) spanning 3 of 6 columns, haiku panel the other 3 · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines | When you want a little personality |
-| `proverb` | Same structure as `note`, but the main block spans 4 of 6 columns and the 2/6 panel shows the **proverb of the day** from [`data/proverbs.json`](data/proverbs.json) with its origin | Calm, no network beyond the weather |
+| `note` | Header · compact now block (icon + temperature, condition, until/haze) spanning 3 of 6 columns, haiku panel the other 3 · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines | When you want a little personality |
+| `proverb` **(default)** | Same structure as `note`, but the main block spans 4 of 6 columns and the 2/6 panel shows the **proverb of the day** from [`data/proverbs.json`](data/proverbs.json) with its origin | Calm, no network beyond the weather |
 | `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
 
 The shared header on `glance` and `rain`: date left; place and time right; `BATT LOW` only when the battery is low.
