@@ -4,7 +4,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import Forecast, bold, canvas, hour, icon_mid, rain_bar, medium, text_mid, text_top, wrap
+from screens.common import Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid, text_top, wrap
 from screens.weather import fetch  # noqa: F401  (same data as the detailed screen)
 
 
@@ -44,12 +44,8 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
             d.line((n * 100, 132, n * 100, 230), fill="black")
     d.line((0, 238, 400, 238), fill="black")
 
-    # today / tomorrow (y 239-300): label | icon | high/low | rain %, centred per row
+    # today / tomorrow (y 239-300): label | icon | high/low | rain sparkline | rain %
     for row, (label, k) in enumerate((("Today", 0), ("Tmrw", 1))):
-        cy = 254 + row * 30
-        text_mid(d, 10, cy, label, medium(16))
-        icon_mid(img, icons.wmo(fc.daily["weather_code"][k])[1], 92, cy, 26)
-        hi, lo = round(fc.daily["temperature_2m_max"][k]), round(fc.daily["temperature_2m_min"][k])
-        text_mid(d, 118, cy, f"{hi}° / {lo}°", bold(17))
-        text_mid(d, 390, cy, f"rain {fc.daily['precipitation_probability_max'][k]}%", medium(16), align="r")
+        day_row(img, d, fc, label, k, 254 + row * 30)
+
     return img

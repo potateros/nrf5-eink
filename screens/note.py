@@ -11,8 +11,8 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import (Forecast, bold, canvas, hour, icon_mid, medium, rain_bar, text_mid, text_top, wrap,
-                            wrap_lines)
+from screens.common import (Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid, text_top,
+                            wrap, wrap_lines)
 from screens import quip, weather
 
 COLS = 6
@@ -122,12 +122,8 @@ def _hourly(img, d, fc: Forecast):
 
 def _days(img, d, fc: Forecast):
     for row, (label, k) in enumerate((("Today", 0), ("Tmrw", 1))):
-        cy = 254 + row * 30
-        text_mid(d, 10, cy, label, medium(16))
-        icon_mid(img, icons.wmo(fc.daily["weather_code"][k])[1], 92, cy, 26)
-        hi, lo = round(fc.daily["temperature_2m_max"][k]), round(fc.daily["temperature_2m_min"][k])
-        text_mid(d, 118, cy, f"{hi}° / {lo}°", bold(17))
-        text_mid(d, 390, cy, f"rain {fc.daily['precipitation_probability_max'][k]}%", medium(16), align="r")
+        day_row(img, d, fc, label, k, 254 + row * 30)
+
 
 
 def layout(data: dict, text: str, by: str | None, main_cols: float, keep_breaks: bool,

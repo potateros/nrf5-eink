@@ -109,6 +109,34 @@ def wrap(d: ImageDraw.ImageDraw, text: str, font, max_w: float, max_lines: int =
     return lines
 
 
+def rain_sparkline(d: ImageDraw.ImageDraw, fc: "Forecast", k: int, x0: float, x1: float, cy: float, h: int = 18):
+    """Day k's hourly chance of rain as 24 bars between x0 and x1, on a baseline centred at cy.
+    Today's past hours are just dots on the baseline, so the bars show what's still ahead."""
+    hours = fc.day_hours(k)[:24]
+    bw, base = (x1 - x0) / 24, cy + h / 2
+    this_hour = fc.now.replace(minute=0, second=0, microsecond=0)
+    for n, i in enumerate(hours):
+        x = x0 + n * bw
+        if fc.times[i] < this_hour:
+            d.point((x + 1, base), fill="black")
+        else:
+            d.rectangle((x, base - max(1, h * fc.rain(i) / 100), x + bw - 2, base), fill="black")
+    d.line((x0, base + 1, x1 - 2, base + 1), fill="black")
+
+
+def day_row(img: Image.Image, d: ImageDraw.ImageDraw, fc: "Forecast", label: str, k: int, cy: float):
+    """Today/Tmrw row: label | icon | high/low | 24 h rain sparkline | rain %."""
+    text_mid(d, 10, cy, label, medium(16))
+    icon_mid(img, icons.wmo(fc.daily["weather_code"][k])[1], 92, cy, 26)
+    temps = f"{round(fc.daily['temperature_2m_max'][k])}° / {round(fc.daily['temperature_2m_min'][k])}°"
+    text_mid(d, 118, cy, temps, bold(17))
+    rain = f"rain {fc.daily['precipitation_probability_max'][k]}%"
+    text_mid(d, 390, cy, rain, medium(16), align="r")
+    x0 = 118 + d.textlength(temps, font=bold(17)) + 12
+    x1 = 390 - d.textlength(rain, font=medium(16)) - 12
+    rain_sparkline(d, fc, k, x0, x1, cy)
+
+
 def rain_bar(d: ImageDraw.ImageDraw, x: float, y: float, w: float, h: float, pct: int):
     d.rectangle((x, y, x + w, y + h), outline="black")
     if pct:
@@ -138,6 +166,11 @@ class Forecast:
 
     def night(self, t: dt.datetime) -> bool:
         return not any(a <= t < b for a, b in self._sun)
+
+    def day_hours(self, k: int) -> list[int]:
+        """Hourly indices of day k (0 = today, 1 = tomorrow)."""
+        day = self.now.date() + dt.timedelta(days=k)
+        return [i for i, t in enumerate(self.times) if t.date() == day]
 
     def rain(self, i: int) -> int:
         return self.hourly["precipitation_probability"][i] or 0
