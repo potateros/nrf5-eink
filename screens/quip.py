@@ -80,18 +80,28 @@ def clean(text: str) -> str:
     return "\n".join(lines)
 
 
-def generate(fc: Forecast, data: dict) -> tuple[str, str]:
-    """Ask the model, retrying once if the length is off. Returns (quote, model)."""
-    prompt = facts(fc, data)
-    for attempt in range(2):
-        text, model = llm.chat(SYSTEM, prompt)
+def generate(fc: Forecast, data: dict, attempts: int = 4) -> tuple[str, str]:
+    """Ask the model until a reply passes validation. Returns (haiku, model).
+
+    openrouter/free picks a random free model per request, and some of them are useless here (a
+    reasoning model that runs out of tokens, a content-safety classifier), so a bad reply just
+    means "try again", which re-rolls the model."""
+    base = facts(fc, data)
+    prompt, problems = base, []
+    for _ in range(attempts):
+        try:
+            text, model = llm.chat(SYSTEM, prompt)
+        except Exception as exc:
+            problems.append(str(exc))
+            continue
         text = clean(text)
         words, lines = len(text.split()), len(text.splitlines())
         if lines == 3 and MIN_WORDS <= words <= MAX_WORDS and fits(text):
             return text, model
-        prompt = facts(fc, data) + (f"\n\nYour last answer had {lines} lines and {words} words. "
-                                    "Reply with exactly three short lines (5-7-5 syllables).")
-    raise RuntimeError(f"reply ({lines} lines, {words} words) isn't a haiku that fits the panel")
+        problems.append(f"{model}: {lines} lines, {words} words")
+        prompt = base + (f"\n\nA previous answer had {lines} lines and {words} words. "
+                         "Reply with exactly three short lines (5-7-5 syllables).")
+    raise RuntimeError("no usable haiku: " + "; ".join(problems))
 
 
 def get(data: dict, now: dt.datetime | None = None, force: bool = False) -> str | None:

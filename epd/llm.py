@@ -24,7 +24,7 @@ def configured() -> bool:
     return bool(load_env().get("OPENROUTER_API_KEY"))
 
 
-def chat(system: str, user: str, max_tokens: int = 600, timeout: float = 45) -> tuple[str, str]:
+def chat(system: str, user: str, max_tokens: int = 4000, timeout: float = 90) -> tuple[str, str]:
     """Return (reply text, model that answered). Raises on HTTP/API errors or an empty reply."""
     env = load_env()
     key = env.get("OPENROUTER_API_KEY")
@@ -35,7 +35,9 @@ def chat(system: str, user: str, max_tokens: int = 600, timeout: float = 45) -> 
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "max_tokens": max_tokens,
         "temperature": 0.9,
-        "reasoning": {"exclude": True},  # free pool includes reasoning models; we only want the answer
+        # The free pool includes reasoning models that can spend the whole budget thinking: keep the
+        # effort low, the budget generous, and leave the reasoning out of the reply.
+        "reasoning": {"effort": "low", "exclude": True},
     }
     req = urllib.request.Request(URL, data=json.dumps(body).encode(), headers={
         "Authorization": f"Bearer {key}",
@@ -45,7 +47,9 @@ def chat(system: str, user: str, max_tokens: int = 600, timeout: float = 45) -> 
     resp = json.load(urllib.request.urlopen(req, timeout=timeout))
     if "error" in resp:
         raise RuntimeError(f"OpenRouter error: {resp['error']}")
-    text = (resp["choices"][0]["message"].get("content") or "").strip()
+    choice = resp["choices"][0]
+    text = (choice["message"].get("content") or "").strip()
+    model = resp.get("model", body["model"])
     if not text:
-        raise RuntimeError("empty reply")
-    return text, resp.get("model", body["model"])
+        raise RuntimeError(f"empty reply from {model} (finish: {choice.get('finish_reason')})")
+    return text, model
