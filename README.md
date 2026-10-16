@@ -6,6 +6,19 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 - **Device reference (hardware, firmware, BLE protocol, quirks):** [docs/DEVICE.md](docs/DEVICE.md)
 - **Device:** `NRF_EPD_5E5D`, a non-public variant of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) firmware (`v1.10-nrf52811`)
 
+| `glance` (default) | `rain` |
+| --- | --- |
+| ![glance layout](docs/images/glance.png) | ![rain layout](docs/images/rain.png) |
+
+Exact 1-bit frames as sent to the panel, shown at 2×, with live Punggol data from a hazy, showery October afternoon. Regenerate with `uv run python tools/screenshots.py`.
+
+<details>
+<summary><code>detailed</code> (the original dense layout, kept for reference)</summary>
+
+![detailed layout](docs/images/detailed.png)
+
+</details>
+
 ## Quick start
 
 ```sh
@@ -72,6 +85,7 @@ screens/
   rain.py     layout B
 tools/
   info.py, testcard.py
+  screenshots.py  regenerates docs/images/<layout>.png for this README
   experiments/  red-colour probes from before the refresh-timing fix, kept for the record
 docs/DEVICE.md  everything known about the device
 ```
