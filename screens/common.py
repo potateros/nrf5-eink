@@ -10,7 +10,7 @@ from screens.weather import battery_level
 
 FONTS = Path(__file__).resolve().parent.parent / "fonts"
 W, H = 400, 300
-# Red is a signal colour, used only for what you might act on: wet hours (chance >= WET), haze, BATT LOW.
+# Red is a signal colour, used only for what you might act on: wet hours (chance >= WET), unhealthy haze, BATT LOW.
 # In a black/white push it thresholds to black (luminance 66 < INK_THRESHOLD), so layouts look unchanged.
 RED = (220, 0, 0)
 WET = 50  # % chance of rain that counts as "bring an umbrella" (same as rain_window)
@@ -18,6 +18,14 @@ WET = 50  # % chance of rain that counts as "bring an umbrella" (same as rain_wi
 
 def rain_ink(pct: int):
     return RED if pct >= WET else "black"
+
+
+HAZE_PSI = 50  # show PSI unless it's in NEA's "Good" band (0-50); the owner watches haze closely
+
+
+def haze_ink(psi: int):
+    """Red from "Unhealthy" (> 100), when it's worth a mask; black while merely "Moderate"."""
+    return RED if psi > 100 else "black"
 
 
 @lru_cache(maxsize=None)

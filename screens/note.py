@@ -11,7 +11,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import (RED, Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid,
+from screens.common import (HAZE_PSI, RED, Forecast, bold, haze_ink, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid,
                             text_top, wrap, wrap_lines)
 from screens import quip, weather
 
@@ -63,8 +63,9 @@ def _main(img, d, fc: Forecast, split: int):
         sub_y = 136 if len(lines) == 1 else 144
     for k, line in enumerate(lines):
         text_top(d, 10, (110 if len(lines) == 1 else 106) + k * 18, line, font)
-    # (text, colour): the haze warning is red, like every "act on this" item
-    parts = [p for p in ((fc.until and f"until {fc.until}", "black"), (fc.psi > 100 and f"Haze PSI {fc.psi}", RED))
+    # (text, colour): haze shows unless PSI is "Good", red once it's unhealthy, like every "act on this" item
+    parts = [p for p in ((fc.until and f"until {fc.until}", "black"),
+                         (fc.psi > HAZE_PSI and f"Haze PSI {fc.psi}", haze_ink(fc.psi)))
              if p[0]]
     joined = " · ".join(t for t, _ in parts)
     if parts and d.textlength(joined, font=medium(14)) <= width:

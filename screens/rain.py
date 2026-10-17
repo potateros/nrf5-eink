@@ -4,7 +4,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import RED, Forecast, bold, canvas, hour, icon_mid, medium, rain_ink, text_mid, text_top
+from screens.common import HAZE_PSI, RED, Forecast, haze_ink, bold, canvas, hour, icon_mid, medium, rain_ink, text_mid, text_top
 from screens.weather import fetch  # noqa: F401
 
 
@@ -25,8 +25,8 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
 
     head = headline(fc)
     text_top(d, 10, 42, head, bold(26), fill="black" if head.startswith("Dry") else RED)
-    if fc.psi > 100:
-        text_top(d, 390, 42, f"PSI {fc.psi}", medium(16), align="r", fill=RED)
+    if fc.psi > HAZE_PSI:
+        text_top(d, 390, 42, f"PSI {fc.psi}", medium(16), align="r", fill=haze_ink(fc.psi))
     text_top(d, 10, 78, f"Now {round(fc.cur['temperature_2m'])}° · {fc.condition.lower()}", medium(16))
 
     # 24 h chance-of-rain bars, dotted 50% line

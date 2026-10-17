@@ -28,6 +28,7 @@ SCREENS = {
     "proverb": ("screens.proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
     "at-a-glance": ("screens.at_a_glance", "date, weather + month | 7-day agenda from macOS Calendar"),
     "detailed": ("screens.weather", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
+    "auto": ("screens.auto", "rain when heavy rain is coming (any rain before noon), else proverb"),
 }
 ALIASES = {"weather": "detailed"}
 
