@@ -4,7 +4,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import Forecast, bold, canvas, hour, icon_mid, medium, text_mid, text_top
+from screens.common import RED, Forecast, bold, canvas, hour, icon_mid, medium, rain_ink, text_mid, text_top
 from screens.weather import fetch  # noqa: F401
 
 
@@ -23,9 +23,10 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
     fc = Forecast(data, now or dt.datetime.now())
     img, d = canvas(fc, battery_mv)
 
-    text_top(d, 10, 42, headline(fc), bold(26))
+    head = headline(fc)
+    text_top(d, 10, 42, head, bold(26), fill="black" if head.startswith("Dry") else RED)
     if fc.psi > 100:
-        text_top(d, 390, 42, f"PSI {fc.psi}", medium(16), align="r")
+        text_top(d, 390, 42, f"PSI {fc.psi}", medium(16), align="r", fill=RED)
     text_top(d, 10, 78, f"Now {round(fc.cur['temperature_2m'])}° · {fc.condition.lower()}", medium(16))
 
     # 24 h chance-of-rain bars, dotted 50% line
@@ -39,7 +40,8 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
         i = fc.start + k
         if i >= len(fc.times):
             break
-        d.rectangle((gx + k * bw + 1, gy + gh - gh * fc.rain(i) / 100, gx + (k + 1) * bw - 2, gy + gh), fill="black")
+        d.rectangle((gx + k * bw + 1, gy + gh - gh * fc.rain(i) / 100, gx + (k + 1) * bw - 2, gy + gh),
+                    fill=rain_ink(fc.rain(i)))
         if k % 6 == 0:
             text_top(d, gx + k * bw, gy + gh + 6, hour(fc.times[i]), bold(12))
     d.line((0, 254, 400, 254), fill="black")

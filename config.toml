@@ -1,6 +1,6 @@
 # nrf5-eink settings. `uv run python -m epd.cli use <screen>` rewrites the screen line.
 
-# Layout pushed when no screen is named: glance | rain | note | proverb | detailed
+# Layout pushed when no screen is named: glance | rain | note | proverb | at-a-glance | detailed
 screen = "proverb"
 
 # Punggol, Singapore
@@ -12,3 +12,10 @@ lon = 103.9021
 [note]
 text = "The best time to plant a tree was 20 years ago. The second best time is now."
 by = "Chinese proverb"
+
+# "at-a-glance" layout: macOS Calendar calendars to leave out of the agenda (everything else is shown,
+# so newly added accounts appear on their own). Names as in Calendar.app.
+[calendar]
+exclude = ["Routines"]
+red_sources = ["Workato"]  # accounts whose events are drawn all red
+reminders = "~/Developer/potateros/trml-byos/host/data/reminders.json"  # dated reminders join the agenda

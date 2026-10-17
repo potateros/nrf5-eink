@@ -11,8 +11,8 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import (Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid, text_top,
-                            wrap, wrap_lines)
+from screens.common import (RED, Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid,
+                            text_top, wrap, wrap_lines)
 from screens import quip, weather
 
 COLS = 6
@@ -63,13 +63,19 @@ def _main(img, d, fc: Forecast, split: int):
         sub_y = 136 if len(lines) == 1 else 144
     for k, line in enumerate(lines):
         text_top(d, 10, (110 if len(lines) == 1 else 106) + k * 18, line, font)
-    parts = [s for s in (fc.until and f"until {fc.until}", fc.psi > 100 and f"Haze PSI {fc.psi}") if s]
-    joined = " · ".join(parts)
+    # (text, colour): the haze warning is red, like every "act on this" item
+    parts = [p for p in ((fc.until and f"until {fc.until}", "black"), (fc.psi > 100 and f"Haze PSI {fc.psi}", RED))
+             if p[0]]
+    joined = " · ".join(t for t, _ in parts)
     if parts and d.textlength(joined, font=medium(14)) <= width:
-        text_top(d, 10, sub_y, joined, medium(14))
+        x = 10
+        for k, (part, ink) in enumerate(parts):
+            part = part if k == len(parts) - 1 else part + " · "
+            text_top(d, x, sub_y, part, medium(14), fill=ink)
+            x += d.textlength(part, font=medium(14))
     else:  # narrow main block: until / haze on their own lines
-        for k, part in enumerate(parts):
-            text_top(d, 10, sub_y - 4 + k * 16, wrap(d, part, medium(14), width, max_lines=1)[0], medium(14))
+        for k, (part, ink) in enumerate(parts):
+            text_top(d, 10, sub_y - 4 + k * 16, wrap(d, part, medium(14), width, max_lines=1)[0], medium(14), fill=ink)
 
 
 def panel_lines(d, text: str, by: str | None, split: int, keep_breaks: bool):

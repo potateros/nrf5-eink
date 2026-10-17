@@ -6,6 +6,7 @@
   uv run python -m epd.cli list                        # available screens (* = current)
 """
 import argparse
+import datetime as dt
 import asyncio
 import importlib
 import re
@@ -25,6 +26,7 @@ SCREENS = {
     "rain": ("screens.rain", "rain headline + 24 h chance-of-rain chart"),
     "note": ("screens.note", "3/6 now block + 3/6 LLM weather haiku panel, 6 x 2-hourly slots"),
     "proverb": ("screens.proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
+    "at-a-glance": ("screens.at_a_glance", "date, weather + month | 7-day agenda from macOS Calendar"),
     "detailed": ("screens.weather", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
 }
 ALIASES = {"weather": "detailed"}
@@ -47,9 +49,28 @@ def resolve(name: str | None, cfg: dict) -> str:
     return name
 
 
+BATTERY_LOG = Path(__file__).resolve().parent.parent / ".cache" / "battery.csv"
+
+
+def log_battery(mv: int):
+    """Append every reading (time, mV): previews reuse the last one, and the trend will tell
+    roughly how many days are left once the rail starts to sag."""
+    BATTERY_LOG.parent.mkdir(exist_ok=True)
+    with BATTERY_LOG.open("a") as f:
+        f.write(f"{dt.datetime.now():%Y-%m-%dT%H:%M:%S},{mv}\n")
+
+
+def last_battery() -> int | None:
+    try:
+        return int(BATTERY_LOG.read_text().strip().splitlines()[-1].split(",")[1])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
 def build(name: str, cfg: dict, battery_mv: int | None = None) -> Image.Image:
     mod = importlib.import_module(SCREENS[name][0])
-    return mod.render(mod.fetch(cfg["lat"], cfg["lon"]), battery_mv=battery_mv)
+    mv = battery_mv if battery_mv is not None else last_battery()
+    return mod.render(mod.fetch(cfg["lat"], cfg["lon"]), battery_mv=mv)
 
 
 async def push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
@@ -57,6 +78,8 @@ async def push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
     from .device import EPD, MODE_CALENDAR, WIPE_SECONDS
     async with EPD() as e:
         mv = int(e.info["bat"]) if "bat" in e.info else None
+        if mv:
+            log_battery(mv)
         try:
             img = build(name, cfg, battery_mv=mv)
         except Exception as exc:
@@ -71,8 +94,8 @@ async def push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
             print(f"device clock off by {drift}s; resyncing")
             await e.set_time(MODE_CALENDAR)
             await asyncio.sleep(WIPE_SECONDS)
-        black, _ = to_planes(img, red=False, dither=False)
-        await e.show(black, wipe=wipe)
+        black, red = to_planes(img, red=True, dither=False)  # red accents: wet hours, haze, battery LOW
+        await e.show(black, red, wipe=wipe)
         await e.arm_fallback(MODE_CALENDAR)
         await asyncio.sleep(2)
     print(f"pushed {name} (battery {mv} mV, clock drift {drift if drift is None else round(drift)}s), "
@@ -91,7 +114,7 @@ def main():
             print(f"default screen: {name}")
         else:
             for name, (_, desc) in SCREENS.items():
-                print(f"{'*' if name == cfg['screen'] else ' '} {name:9} {desc}")
+                print(f"{'*' if name == cfg['screen'] else ' '} {name:11} {desc}")
         return
 
     ap = argparse.ArgumentParser()
@@ -107,7 +130,7 @@ def main():
     name = resolve(args.screen, cfg)
     img = asyncio.run(push(name, cfg, args.wipe)) if args.push else build(name, cfg, battery_mv=args.bat)
     if args.preview and img:
-        preview(img, red=False, dither=False).save(args.preview)
+        preview(img, red=True, dither=False).save(args.preview)
         print("wrote", args.preview)
 
 

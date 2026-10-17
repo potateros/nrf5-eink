@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>xyz.potateros.nrf5-eink.calendar-export</string>
+  <key>CFBundleName</key><string>nrf5-eink calendar export</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Shows your upcoming events on the e-ink calendar dashboard.</string>
+  <key>NSCalendarsUsageDescription</key><string>Shows your upcoming events on the e-ink calendar dashboard.</string>
+</dict>
+</plist>

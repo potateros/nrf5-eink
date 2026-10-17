@@ -8,7 +8,7 @@ Status tags:
 - **[online]** reported by someone else on similar hardware
 - **[open]** unknown / to investigate
 
-Last updated: 2026-10-16 (end of first session)
+Last updated: 2026-10-16 (red verified, controller identified, seller listing + upstream v1.10 source/web tool review). Capability overview: [CAPABILITIES.md](CAPABILITIES.md)
 
 ---
 
@@ -19,9 +19,10 @@ Last updated: 2026-10-16 (end of first session)
 | MCU | Nordic nRF52811 (firmware reports `nrf52811`) | [verified] |
 | Panel | 4.2", 400×300 | [verified] (full-frame 400×300 image fills screen) |
 | Colours | Black / white / **red** — red is drawn by the firmware's built-in calendar | [verified] |
-| Panel controller | Unknown. Firmware model id `0x16` is not in any public source. Similar tags use SSD1619 (BWR) or UC8176 | [open] |
+| Panel controller | **SSD16xx command set (SSD1619-compatible).** Raw `0x4E`/`0x4F` + `0x26` (red RAM) via SEND_CMD/DATA drew a red box after REFRESH (`tools/experiments/raw_ssd1619_probe.py`). Model id `0x16` is not in upstream (which stops at `0x11`); it's this variant's own id | [verified] 2026-10-16 |
 | Battery | 1100 mAh Li-ion (per owner) | [verified by owner] |
-| Battery telemetry | Firmware reports `bat=<mV>`; reads 2921–2932 mV. Almost certainly the **regulated VDD rail**, not the cell (a Li-ion at 2.9 V would be cut off). Useful only as a "rail is sagging → battery low" signal | [verified] reading / [open] exact regulator |
+| Battery telemetry | Firmware reports `bat=<mV>`; reads 2907–2932 mV. Almost certainly the **regulated VDD rail**, not the cell (a Li-ion at 2.9 V would be cut off). The built-in calendar shows it as `2.9V` + a glyph filled by upstream's `batt_cal` curve (coin-cell shaped: ≥ 2999 mV = 100 %, 2785 mV = 28 %, 2392 mV = 4 %), ≈ 68 % at 2907 mV. Our dashboards use the same curve. Upstream's `EPD_ReadVoltage` samples the nRF **VDD pin** with the SAADC (`PSELP = VDD`, gain 1/6, internal 0.6 V ref, 10-bit), so it is the supply after the regulator, by design | [verified] reading + calendar glyph / [source] VDD |
+| Temperature sensor | The panel controller's built-in sensor (SSD16xx: update `0xB1`, then read reg `0x1B`). Upstream reads it at every built-in redraw and prints it only in clock mode, as `19℃[5E5D]` (°C + last 4 chars of the BLE name). The seller's photo shows exactly that. Not reported over BLE | [source] / [online] photo |
 | Debug | No SWD probe attached; all access over BLE | — |
 
 ## 2. Firmware
@@ -31,19 +32,63 @@ A **non-public variant** of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nR
 | Item | Value | Status |
 | --- | --- | --- |
 | Version characteristic (`62750003`) | String `v1.10-nrf52811\0` (upstream returns one byte, e.g. `0x1a`; DYC `0x20`) | [verified] |
+| Base version | Upstream tag **v1.10** (released 2026-08-08, `APP_VERSION 0x1a`) is the same version number, so the variant is most likely built on upstream v1.10. Upstream HEAD (2026-09-08) is 4 small commits past it | [source] |
 | BLE name | `NRF_EPD_5E5D` (upstream: `NRF_EPD_` + last 2 bytes of MAC) | [verified] |
 | Image transfer RLE | Supported (`rle=1`) | [verified] |
 | MTU | 247 negotiated, firmware reports `mtu=244` → 242 bytes image data per packet | [verified] |
-| OTA | Nordic **Secure DFU** service `FE59` (buttonless) present. Signing key unknown → do **not** attempt | [verified] presence |
-| Image "slots" | Notifies `slots=15 0 255` — likely 15 on-flash image slots; command set unknown | [open] |
+| OTA | Nordic **Secure DFU** service `FE59` (buttonless) present. Upstream publishes its signing key (`tools/priv.pem`) and bootloader hex, but we don't know whether the vendor's bootloader trusts that key, and flashing upstream would lose the variant's extras (§2.0) anyway → do **not** attempt | [verified] presence / [source] key |
+| Image "slots" | Notifies `slots=15 <mask> 255`. Mask `0` in the first session, `32767` (`0x7FFF`, all 15 bits) on the evening of 2026-10-16. Likely 15 slots / occupied mask / active (255 = none). Commands unknown and not in any public source (GitHub code search for the strings: nothing). 15 raw frames wouldn't fit in 192 KB flash | [verified] values / [open] meaning |
 | `sid=` | 64-hex-char ID (`F9196A6B…BA15`), looks like a SHA-256 — device/serial hash? | [open] |
+
+### 2.0 Seller listing (Pinduoduo, "upgraded version")
+
+The owner's unit is the listing's **升级版 (upgraded version)**, which explains the non-public firmware. The listing credits "tls0922" (sic, tsl0922) for the open source. Screenshots read 2026-10-16.
+
+| Claim | Status |
+| --- | --- |
+| 4.2" **black/white/red** three-colour panel; no greyscale is offered anywhere in the listing | [online] |
+| 1100 mAh Li-ion, Type-C. Use a plain 5 V / 1–2 A charger, avoid fast chargers. LED beside the port (right side): red = charging, blue = full | [online] |
+| Standby "about 2 months" in calendar mode | [online] |
+| Physical power switch on the right side: down = on, up = off. After a power cycle the device must be set up again (clock reset, §6.1) | [online] |
+| Calendar/time not updating or a garbled screen means low voltage: charge it | [online] |
+| Warning: the three-colour screen isn't recommended as a clock, with partial or full refresh — frequent refreshes risk burn-in (烧屏) | [online] |
+| Configured through a WeChat mini-program or a web page (one-click time sync); some Xiaomi/HarmonyOS/iOS phones can't find it in the mini-program and should use the web page. The firmware's own sync prompt points at upstream's tool (§2.0a), so the "web page" is most likely that | [online] |
+| Back has 4 magnets; hand-made 3D-printed case | [online] |
+| Product photo of clock mode shows date, lunar date, a `3.3V` battery reading and a temperature (`19℃`) | [online] |
+
+Standard vs upgraded firmware (feature table):
+
+| Feature | Standard | Upgraded (ours) |
+| --- | --- | --- |
+| Calendar | yes | yes |
+| Doodle / drawing board | yes | yes |
+| Clock with **partial refresh** | no | yes ("core upgrade") |
+| Countdown | no | yes ("core upgrade") |
+| Picture upload | 1 image | **6-image carousel** ("core upgrade") |
+| Templates | no | to-do list, timetable, business card, QR code, … |
+
+So the variant has a partial-refresh clock mode (contradicts §6's upstream-based "full refresh every minute" for this unit) and stored images that rotate, likely what the `slots=` notification is about (§2, open question 2). The opcodes for these are still unknown.
+
+### 2.0a Upstream web tool (tsl0922.github.io/EPD-nRF5)
+
+The vendor's firmware still shows upstream's **"SYNC TIME!"** box (§6), which sends buyers to upstream's web tool. Reviewed 2026-10-16: the live site is byte-identical to `html/` at upstream HEAD.
+
+| Behaviour | Status |
+| --- | --- |
+| Web Bluetooth: desktop/Android Chrome or Edge, **Bluefy** on iOS. Connects, reads the version characteristic's **first byte**, then sends `INIT` | [source] |
+| Version byte < `0x16` → warns "firmware too old" and offers the legacy tool at `/EPD-nRF5/v1.5`. Our string starts with `v` (`0x76`), so it's treated as current | [source] |
+| Notifications: config bytes (fills the pin and driver fields), `mtu=` (+ `rle=1` turns on RLE), `t=` (logs device vs local time). `slots=` and `sid=` are just logged, so the variant's extras aren't driven from here | [source] |
+| **日历模式 / 时钟模式** (calendar / clock) buttons = `SET_TIME` with mode 1 / 2 and the browser's timezone. That's the "sync time" fix | [source] |
+| Clock mode asks for confirmation first: "clock mode currently uses full refreshes; it's mostly used to **repair ghosting on aged screens**; not recommended long-term" | [source] |
+| Also: clear screen, raw command box (hex, first byte = opcode), image upload with crop and dithering (Floyd-Steinberg / Atkinson / Bayer; BW, BWR, BWRY, 6-colour), and a paint/text canvas (the listing's "doodle") | [source] |
+| **Risk for this unit:** the "设置驱动" (set driver) button sends `SET_PINS` + `INIT <model>`. The driver list stops at `0x11`, so any choice overwrites our model `0x16`. Don't press it | [source] |
 
 ### 2.1 Notifications sent after `INIT` (0x01)
 
 Observed in order:
 
 1. Raw config bytes (14 bytes, see §3) — sent when notifications are enabled
-2. `slots=15 0 255`
+2. `slots=15 <mask> 255` (mask seen as `0` and `32767`)
 3. `sid=<64 hex>`
 4. `mtu=244 rle=1`
 5. `t=<device local unix time> bat=<mV>` — `t` is local time (UTC + tz), e.g. Singapore adds 28800
@@ -91,7 +136,8 @@ Every write is `[cmd][args…]`.
 | `0x20` | SET_TIME | `u32 BE unix ts`, `i8 tz hours`, `u8 mode` | Sets RTC, sets display mode, **forces a built-in redraw** (full refresh). The redraw runs **asynchronously** (app scheduler), so anything sent within ~25 s can interleave with it (we saw a mixed screen with the built-in `NRF_EPD_5E5D` label) | [verified] |
 | `0x21` | SET_WEEK_START | `u8 0–6` | Calendar week start | [source] |
 | `0x30` | WRITE_IMAGE | `flags`, data | Writes image RAM. See §5 | [verified] partially |
-| `0x31–0x33` | WRITE_BLOCK / QUERY_STATUS / RESET_TRANSFER | CRC'd block transfer | Exists in DYC fork only | [open] on this unit |
+| `0x31–0x33` | WRITE_BLOCK / QUERY_STATUS / RESET_TRANSFER | CRC'd block transfer | Exists in DYC fork only. On this unit `0x31`–`0x4F` sent with no arguments do nothing visible (no reply, no state change, no redraw; probed twice 2026-10-16) | [verified] no-arg / [open] with args |
+| `0x93` | GET_INFO | — | Only in an unmerged upstream PR (#20, 2026-10-06, for an nRF52811 + SSD1619 4.2" BWR tag): replies `v=<mV> m=<mode>`. Not in upstream or (as far as we know) the variant | [online] / [open] on this unit |
 | `0x90` | SET_CONFIG | 14 config bytes | Overwrites config in flash, **no redraw**. Read config first, change one byte, write back | [verified] |
 | `0x91` | SYS_RESET | — | Reboot | [source] |
 | `0x92` | SYS_SLEEP | — | System-off deep sleep. With wake-up pin `0xFF` there may be no way to wake it except power-cycling | [source] — avoid |
@@ -110,7 +156,9 @@ RLE: control byte `0x80|(n-3)` + value = run of n (3–130); control `n-1` + n b
 | --- | --- |
 | **Disconnecting powers the panel down mid-refresh.** A full refresh runs through flash, negative, black and (on red panels) long red phases. Disconnecting ~2 s after `REFRESH` froze the screen in whichever phase it was in: an inverted image, solid black, or blank. **Hold the connection ~30 s after `REFRESH`.** | [verified] 2026-10-16 |
 | Polarity matches upstream: black plane `1 = white`, `0 = black`. (The "inverted polarity" we recorded earlier was a refresh frozen in its negative phase; flipping our data made the frozen negative look right.) | [verified] |
-| A "red plane" (bit 0 = 1) appeared to overwrite black, but that test also disconnected mid-refresh, and red is the last, slowest phase. **Needs retesting with the 30 s hold.** | [open] |
+| **Red works.** Modern red plane (bit 0 = 1), 0 = red, held 60 s: solid red, stripes, 1 px lines and 16/21 px text all sharp, no ghosting without CLEAR (webcam, `tools/experiments/red_card.py`). The earlier "red overwrites black" was the cut-short refresh | [verified] 2026-10-16 |
+| **REFRESH is asynchronous on this variant.** A notification re-enable (the firmware answers with its config) was answered 0.2 s after REFRESH; upstream would block until BUSY clears. The hold is still needed: disconnect powers the panel down | [verified] 2026-10-16 |
+| Refresh timeline (webcam, 1 fps, from REFRESH): flash/inversion 0–8 s, black/white settled ~14 s, red saturated ~18 s, final ~22 s. 30 s hold = ~8 s margin | [verified] 2026-10-16 |
 | **The panel keeps a separate red RAM.** Pushing only the black plane without `CLEAR` showed a dithered red overlay: stale red RAM from earlier tests. Sending an all-`0xFF` red plane (= no red) on every push fixes it, with no `CLEAR` needed. | [verified] 2026-10-16 |
 | Matches the SSD1619A datasheet: `0x24` BW RAM (1 = white), `0x26` red RAM with a "Display Update Control 1" option to invert it; upstream inverts it, so 0 = red. The datasheet also says: *"User should not interrupt this operation to avoid corruption of panel images."* | [source] |
 | `CLEAR` (0x02) is **not** needed per push: black plane + blank red plane + full `REFRESH` held to completion comes out clean (~40 s per push vs ~70 s). Keep an occasional `CLEAR` for ghosting. If you do `CLEAR`, wait ~25 s before sending `INIT` (INIT hardware-resets the panel and would cut the clear's refresh short) | [verified] 2026-10-16 |
@@ -126,9 +174,9 @@ Low nibble `0x0F` = black plane, `0x00` = red plane; high nibble `0xF0` on every
 | Used successfully for black+red on an nRF52811 400×300 SSD1619 tag with DYC firmware ([epd-ai-quota-display](https://github.com/askfanxiaojun/epd-ai-quota-display/blob/main/docs/BLE_PROTOCOL.md)) | [online] |
 | **Not supported on this unit.** The firmware parses the flag byte with the modern bit layout, so `0x0F` = red + begin + RLE. Raw bytes got RLE-decoded → shifted, wrapped garbage ("RED" split across both edges) | [verified] 2026-10-16 |
 
-### 5.3 Red on uploads — conclusion so far
+### 5.3 Red on uploads — resolved
 
-**Superseded:** every red test below disconnected ~2 s after `REFRESH`, so none of them let the red phase run. The conclusions are unreliable. Retest the modern red plane with the 30 s hold first. [open]
+**Red works** with the modern red plane and the 30 s hold (§5.1). The raw SSD1619 probe also works when held (2026-10-16 rerun: red box drawn via raw `0x26`). The table below is the original, cut-short history. [verified]
 
 Raw controller probes via `SEND_CMD`/`SEND_DATA` (0x03/0x04), 2026-10-16. Each ran after `CLEAR` + 25 s + `INIT`, a normal black-plane upload (except probe 2), then `REFRESH`:
 
@@ -144,9 +192,10 @@ In both cases a normal push afterwards worked fine, so the probes did no lasting
 | Mode | Behaviour | Status |
 | --- | --- | --- |
 | Picture (0) | Shows last uploaded image. Firmware never redraws on its own | [verified] |
-| Calendar (1) | Firmware-rendered month calendar (Chinese lunar dates, solar terms, holidays); uses red. Redraws at **local midnight** | [verified] red / [source] midnight |
-| Clock (2) | Firmware-rendered clock + date. **Full refresh every minute** (flashes, drains battery). Upstream's web tool warns before enabling it that clock mode uses full refreshes and isn't recommended long-term. It can't show an uploaded picture: the minute timer redraws the built-in layout | [source] |
-| Time-sync hint | If the RTC reads January 2025 (never set), built-in views show a "sync time" tip | [source] |
+| Calendar (1) | Firmware-rendered month calendar (Chinese lunar dates, solar terms, holidays); uses red. Top right: `2.9V` + battery glyph over the device name. Redraws at **local midnight** (`timestamp % 86400 == 0`): a pushed picture with calendar armed via SET_CONFIG was replaced at device 00:00:00 exactly (clock set to 23:58, webcam) | [verified] 2026-10-16 |
+| Clock (2) | Firmware-rendered clock + date. Upstream: **full refresh every minute** (flashes, drains battery); its web tool warns before enabling it (§2.0a). The seller says the upgraded variant does this with **partial refresh** (§2.0), but also warns against long-term clock use (burn-in). It can't show an uploaded picture: the minute timer redraws the built-in layout | [source] / [online] variant |
+| Clock layout | Top: date, weekday, lunar date; battery glyph and `NN℃[5E5D]` on the right. Middle: big HH:MM. Bottom: stem-branch year with the zodiac animal in red (`乙巳蛇年`), ISO week (`44周`), and the next solar term with a countdown (`离立冬 还有6天`). The seller's 2025-11-01 photo matches upstream's layout exactly | [source] / [online] photo |
+| Time-sync hint | In calendar or clock mode, while the RTC is in **January 2025** (power-on default, never set), the firmware draws a centred box: red **"SYNC TIME!"** over `https://tsl0922.github.io/EPD-nRF5`. That's the popup in buyers' photos. On our unit it would mean the clock was lost (power switch cycled or battery flat) | [source] / [online] |
 | After reboot | Firmware redraws the current mode immediately; after a watchdog reset it forces calendar | [source] |
 
 ### 6.0 Live clock on our own dashboard: not possible with this firmware
@@ -167,12 +216,15 @@ In both cases a normal push afterwards worked fine, so the probes did no lasting
 | Only set by `SET_TIME` over BLE; stores **local** time (UTC + tz offset) | [verified] |
 | Power-on default is 2025-01-01 00:00 (first read: `t=1735690069`, i.e. ~8 min after boot). Lost on reset or battery loss | [verified] |
 | Right after sync it matched the Mac within 1 s | [verified] |
-| Drift: depends on whether the board has a 32 kHz crystal (~±20 ppm ≈ 2 s/day) or uses the internal RC oscillator (much worse). Measure by comparing `t=` against host time across pushes | [open] |
+| `SET_TIME` doesn't reset the 1 s timer's phase, and `EPD.set_time` sends `int(time.time())` (truncates up to 1 s), so a sync is good to about ±1 s. Measured −0.74 s right after a whole-second-aligned sync (`tools/experiments/clock_sync.py`) | [verified] 2026-10-16 |
+| Precise offset: `tools/experiments/clock_offset.py` polls INIT every 0.1 s and catches the `t=` tick (±0.15 s) | [verified] |
+| Upstream configures the SoftDevice LF clock as the **internal RC** (`NRF_CLOCK_LF_SRC_RC`, recalibrated every 16 × 0.25 s), which explains the drift below | [source] |
+| **Drift: the clock runs fast, ~+120 ppm (±60)**, i.e. ~5–15 s/day: −0.74 s at 22:03:22 → −0.31 s at 23:02:24 (2026-10-16, no SET_TIME between). Too fast for a 32 kHz crystal (±20 ppm), so the low-frequency clock is the internal RC oscillator. Our push resyncs when off by > 30 s, so expect a SET_TIME (and its built-in redraw) every few days. A full-day rerun would tighten the number | [verified] 2026-10-16 |
 | Measured offset −4 s on two pushes ~15 min apart → the −4 s is mostly measurement latency (`t=` is sent at INIT, host time is read ~1–4 s later); real drift is small so far | [verified] preliminary |
 
 ## 7. How we use it (this repo)
 
-See the [README](../README.md) for the software. Pushes are scheduled by homelab-hq (every 30 min 07:00–23:00, wipe at 06:55); see README "Scheduling". `uv run python tools/info.py` dumps everything the device reports (version, decoded config, battery, clock drift).
+See the [README](../README.md) for the software. Pushes are scheduled by homelab-hq (every 30 min 07:00–23:00, wipe at 00:01); see README "Scheduling". `uv run python tools/info.py` dumps everything the device reports (version, decoded config, battery, clock drift).
 
 
 - Host (Mac) renders screens with Pillow and pushes over BLE (bleak). The display is **passive** and never fetches anything on its own.
@@ -188,19 +240,25 @@ See the [README](../README.md) for the software. Pushes are scheduled by homelab
 | --- | --- |
 | Advertises intermittently; scans can take 30–45 s to find it | [verified] |
 | macOS address (CoreBluetooth UUID): `D686F346-CBEE-3785-1FC7-6409492509FF` | [verified] |
+| GATT: `62750001` (`62750002` write/write-no-rsp/notify, CCCD h=14; `62750003` read) and `FE59` Buttonless DFU (`8ec90003` indicate/write). Nothing else (no Device Information or Battery service). `tools/experiments/gatt_dump.py` | [verified] 2026-10-16 |
+| A Logitech webcam aimed at the panel makes visual checks possible without the owner | [verified] 2026-10-16 |
 | Only one central at a time: close the web tool before running scripts. A manual push during a scheduled one fails, so hold the hq job first | [online] / [verified] |
 | Under launchd, CoreBluetooth permission belongs to the runner (`bun`), not the terminal: `BleakBluetoothNotAvailableError: Bluetooth access is denied` until `bun` is allowed in Privacy & Security → Bluetooth | [verified] 2026-10-16 |
 
 ## 9. Open questions
 
-1. What is model `0x16`? Does the modern red plane work once the refresh is allowed to finish (§5.1, §5.3)?
-2. What are the 15 "slots", and how do we use them? Could the device rotate stored images on its own?
+1. ~~What is model `0x16`? Does red work?~~ Resolved 2026-10-16: SSD16xx-compatible controller, red works (§5.1).
+2. What are the 15 "slots", and how do we use them? Could the device rotate stored images on its own? The seller listing says the upgraded firmware has a 6-image carousel plus templates (to-do, timetable, card, QR) (§2.0); the vendor's WeChat mini-program is the likely client for them; the "web page" buyers are sent to is upstream's tool, which doesn't use slots (§2.0a).
 3. What is `sid`, and what is config byte 13?
-4. Does calendar mode really switch over at midnight on this variant? (Check the morning after a day without pushes.)
+4. ~~Does calendar mode switch over at midnight?~~ Yes, verified 2026-10-16 (§6).
+5. Config byte 13 (`0x04`): upstream's config is 13 bytes, so it's variant-only. Unchanged across SET_TIME, SET_CONFIG, CLEAR-less pushes and REFRESH on 2026-10-16.
+6. Does the variant answer `0x93` (GET_INFO, PR #20) or expose the panel temperature? Low priority: `INIT` already gives `bat=`.
 
 ## Sources
 
-- [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) — upstream firmware + web tool (protocol, RLE, modes)
+- [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) — upstream firmware + web tool (protocol, RLE, modes); live tool at [tsl0922.github.io/EPD-nRF5](https://tsl0922.github.io/EPD-nRF5)
+- [tsl0922/EPD-nRF5#20](https://github.com/tsl0922/EPD-nRF5/pull/20) — unmerged: `0x93` GET_INFO, GCC Makefile, Windows host for a 4.2" nRF52811 BWR tag
+- Pinduoduo seller listing (owner's screenshots, 2026-10-16) — §2.0
 - [YCD12/EPD-nRF5_DYC](https://github.com/YCD12/EPD-nRF5_DYC) — fork with legacy flags + CRC block transfer
 - [askfanxiaojun/epd-ai-quota-display](https://github.com/askfanxiaojun/epd-ai-quota-display) — macOS + BLE pusher for a 400×300 BWR nRF52811 tag; legacy-flag protocol notes
 - [jam422470459/EPD-nRF52-hema213](https://github.com/jam422470459/EPD-nRF52-hema213), [jyh9521/EPD-nRF5-JP](https://github.com/jyh9521/EPD-nRF5-JP) — other nRF52811 forks

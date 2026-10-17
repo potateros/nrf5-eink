@@ -4,7 +4,7 @@ import datetime as dt
 from PIL import Image
 
 from epd import icons
-from screens.common import Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid, text_top, wrap
+from screens.common import RED, Forecast, bold, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid, text_top, wrap
 from screens.weather import fetch  # noqa: F401  (same data as the detailed screen)
 
 
@@ -29,7 +29,7 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
         text_top(d, x2, y, f"until {fc.until}", medium(14))
         y += 17
     if fc.psi > 100:
-        text_top(d, x2, y, f"Haze: PSI {fc.psi}", medium(14))
+        text_top(d, x2, y, f"Haze: PSI {fc.psi}", medium(14), fill=RED)
     d.line((0, 126, 400, 126), fill="black")
 
     # next 12 h (y 127-238): 4 columns, 3 h apart, every row on a shared centre line

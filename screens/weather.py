@@ -18,32 +18,27 @@ def psi_band(v: int) -> str:
         (v > 50) + (v > 100) + (v > 200) + (v > 300)]
 
 
+LOW_PCT = 30  # below the knee of the firmware curve: charge soon
+
+
+def battery_pct(mv: int) -> int:
+    """Estimated charge %, using the firmware's own curve (upstream GUI.c `batt_cal`), so the
+    dashboards agree with the battery glyph on its built-in calendar. It's an estimate: `bat=` is
+    the ~3.0 V rail, which stays flat for most of the cell's life (2.91-2.93 V, i.e. ~65-75 %
+    here) and only drops near the end. A falling number means charge soon."""
+    adc = mv * 2047 // 3600
+    for hi, lo, top, span in ((1705, 1584, 28, 72), (1584, 1360, 4, 24), (1360, 1136, 0, 4)):
+        if adc > hi:
+            return 100 if hi == 1705 else top + span
+        if adc > lo:
+            return top + (adc - lo) * span // (hi - lo)
+    return 0
+
+
 def battery_level(mv: int) -> tuple[float, str]:
-    """(fill 0..1, label) from the firmware's `bat=` reading.
-
-    The 1100 mAh Li-ion cell sits behind a ~3.0 V regulator and the firmware measures the
-    regulated rail, so it reads ~2.92 V until the cell is nearly flat. A percentage would be
-    fiction: report OK until the rail starts sagging, then LOW.
-    """
-    if mv >= 2850:
-        return 1.0, "OK"
-    return max(0.0, (mv - 2500) / 350), "LOW"
-
-
-def draw_battery(d: ImageDraw.ImageDraw, right: int, cy: int, S, mv: int) -> int:
-    """Draw a battery glyph + percentage ending at x=right, vertically centred; return its left x."""
-    level, label = battery_level(mv)
-    font = ImageFont.truetype(FONT, S(13), index=1)
-    x1 = right - d.textlength(label, font=font) - S(4)
-    d.text((right, cy), label, font=font, fill="black", anchor="rm")
-    bw, bh = S(22), S(11)
-    x0, y0 = x1 - bw - S(3), cy - bh // 2
-    d.rectangle((x0, y0, x0 + bw, y0 + bh), outline="black", width=max(1, S(1.5)))
-    d.rectangle((x0 + bw + 1, cy - S(3), x0 + bw + S(3), cy + S(3)), fill="black")
-    fill = round((bw - S(4)) * level)
-    if fill:
-        d.rectangle((x0 + S(2), y0 + S(2), x0 + S(2) + fill, y0 + bh - S(2)), fill="black")
-    return x0
+    """(fill 0..1, label) for a battery glyph: label is "~69%", or "~25% LOW" below LOW_PCT."""
+    pct = battery_pct(mv)
+    return pct / 100, f"~{pct}%" + (" LOW" if pct < LOW_PCT else "")
 
 
 def fetch(lat: float, lon: float) -> dict:
@@ -111,11 +106,11 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
     hb = S(24)
     d.line((0, hb, w, hb), fill="black", width=1)
     d.text((S(8), hb // 2), now.strftime("%A %-d %B"), font=F(17, True), fill="black", anchor="lm")
-    right = w - S(8)
-    if battery_mv:
-        right = draw_battery(d, right, hb // 2, S, battery_mv) - S(10)
-    place = data.get("nowcast", ("Singapore",))[0]
-    d.text((right, hb // 2), f"{place} · updated {now:%-I:%M%p}".replace("AM", "am").replace("PM", "pm"), font=F(13), fill="black", anchor="rm")
+    from screens.common import battery_meter, medium  # lazy: common imports this module
+    battery_meter(d, w - S(8), hb // 2 - 5, battery_mv)  # same top-right meter as every dashboard
+    label = battery_level(battery_mv)[1] if battery_mv else "?"
+    right = w - S(8) - 26 - d.textlength(label, font=medium(12)) - S(12)
+    d.text((right, hb // 2), f"updated {now:%-I:%M%p}".replace("AM", "am").replace("PM", "pm"), font=F(13), fill="black", anchor="rm")
 
     # now
     y0 = hb + S(6)

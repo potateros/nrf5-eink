@@ -10,6 +10,14 @@ from screens.weather import battery_level
 
 FONTS = Path(__file__).resolve().parent.parent / "fonts"
 W, H = 400, 300
+# Red is a signal colour, used only for what you might act on: wet hours (chance >= WET), haze, BATT LOW.
+# In a black/white push it thresholds to black (luminance 66 < INK_THRESHOLD), so layouts look unchanged.
+RED = (220, 0, 0)
+WET = 50  # % chance of rain that counts as "bring an umbrella" (same as rain_window)
+
+
+def rain_ink(pct: int):
+    return RED if pct >= WET else "black"
 
 
 @lru_cache(maxsize=None)
@@ -51,8 +59,8 @@ def medium(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONTS / "NicoClean-Regular.ttf"), 16 if size >= 16 else size)
 
 
-def draw_text(d: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font, anchor: str = "la"):
-    d.text(xy, text, font=font, fill="black", anchor=anchor)
+def draw_text(d: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font, anchor: str = "la", fill="black"):
+    d.text(xy, text, font=font, fill=fill, anchor=anchor)
 
 
 def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
@@ -61,15 +69,15 @@ def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:
     return box[1], box[3]
 
 
-def text_mid(d: ImageDraw.ImageDraw, x: float, cy: float, text: str, font, align: str = "l"):
+def text_mid(d: ImageDraw.ImageDraw, x: float, cy: float, text: str, font, align: str = "l", fill="black"):
     """Draw text with its cap height centred on cy, so text and icons in a row share a centre line."""
     top, bottom = _cap(font)
-    draw_text(d, (x, cy - (top + bottom) / 2), text, font, anchor=align + "a")
+    draw_text(d, (x, cy - (top + bottom) / 2), text, font, anchor=align + "a", fill=fill)
 
 
-def text_top(d: ImageDraw.ImageDraw, x: float, top: float, text: str, font, align: str = "l"):
+def text_top(d: ImageDraw.ImageDraw, x: float, top: float, text: str, font, align: str = "l", fill="black"):
     """Draw text so the top of its capitals sits exactly at `top`."""
-    draw_text(d, (x, top - _cap(font)[0]), text, font, anchor=align + "a")
+    draw_text(d, (x, top - _cap(font)[0]), text, font, anchor=align + "a", fill=fill)
 
 
 def icon_mid(img: Image.Image, kind: str, cx: float, cy: float, size: int, night: bool = False):
@@ -120,7 +128,7 @@ def rain_sparkline(d: ImageDraw.ImageDraw, fc: "Forecast", k: int, x0: float, x1
         if fc.times[i] < this_hour:
             d.point((x + 1, base), fill="black")
         else:
-            d.rectangle((x, base - max(1, h * fc.rain(i) / 100), x + bw - 2, base), fill="black")
+            d.rectangle((x, base - max(1, h * fc.rain(i) / 100), x + bw - 2, base), fill=rain_ink(fc.rain(i)))
     d.line((x0, base + 1, x1 - 2, base + 1), fill="black")
 
 
@@ -131,7 +139,10 @@ def day_row(img: Image.Image, d: ImageDraw.ImageDraw, fc: "Forecast", label: str
     temps = f"{round(fc.daily['temperature_2m_max'][k])}° / {round(fc.daily['temperature_2m_min'][k])}°"
     text_mid(d, 118, cy, temps, bold(17))
     rain = f"rain {fc.daily['precipitation_probability_max'][k]}%"
-    text_mid(d, 390, cy, rain, medium(16), align="r")
+    # red only while wet hours are still ahead (the daily max can be a shower that's already over)
+    this_hour = fc.now.replace(minute=0, second=0, microsecond=0)
+    ahead = max((fc.rain(i) for i in fc.day_hours(k) if fc.times[i] >= this_hour), default=0)
+    text_mid(d, 390, cy, rain, medium(16), align="r", fill=rain_ink(ahead))
     x0 = 118 + d.textlength(temps, font=bold(17)) + 12
     x1 = 390 - d.textlength(rain, font=medium(16)) - 12
     rain_sparkline(d, fc, k, x0, x1, cy)
@@ -140,7 +151,7 @@ def day_row(img: Image.Image, d: ImageDraw.ImageDraw, fc: "Forecast", label: str
 def rain_bar(d: ImageDraw.ImageDraw, x: float, y: float, w: float, h: float, pct: int):
     d.rectangle((x, y, x + w, y + h), outline="black")
     if pct:
-        d.rectangle((x, y, x + w * pct / 100, y + h), fill="black")
+        d.rectangle((x, y, x + w * pct / 100, y + h), fill=rain_ink(pct))
 
 
 class Forecast:
@@ -186,20 +197,46 @@ class Forecast:
         return (run[0], run[1] + dt.timedelta(hours=1)) if run else None
 
 
+def battery_meter(d: ImageDraw.ImageDraw, x: float, top: float, mv: int | None, align: str = "r"):
+    """Battery glyph modelled on the firmware calendar's (20x10 outline, 2x4 nub, inner bar) with
+    the estimated %. align="r": right edge at `x`, label left of the glyph (the header corner);
+    align="l": glyph starts at `x`, label to its right (the calendar layout's bottom-left corner).
+    Red when it's time to charge."""
+    small = medium(12)
+    if mv is None:
+        level, label, ink = 0.0, "?", "black"
+    else:
+        level, label = battery_level(mv)
+        ink = RED if label.endswith("LOW") else "black"
+    if align == "l":
+        _battery_glyph(d, x, top, level, ink)
+        draw_text(d, (x + 26, top + 9), label, small, anchor="ls", fill=ink)
+        return
+    x0 = x - 2 - 20
+    _battery_glyph(d, x0, top, level, ink)
+    draw_text(d, (x0 - 4, top + 9), label, small, anchor="rs", fill=ink)
+
+
+def _battery_glyph(d: ImageDraw.ImageDraw, x0: float, top: float, level: float, ink):
+    d.rectangle((x0, top, x0 + 19, top + 9), outline="black")
+    d.rectangle((x0 + 20, top + 3, x0 + 21, top + 6), fill="black")
+    if level:
+        d.rectangle((x0 + 2, top + 2, x0 + 2 + max(1, round(15 * level)), top + 7), fill=ink)
+
+
 def canvas(fc: Forecast, battery_mv: int | None) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    """White canvas with the shared header: date + place (+ BATT LOW) on the left, and a small
-    two-line "last updated / 6:29pm" stamp on the right. The stamp is deliberately tiny so it isn't
-    mistaken for a live clock (the panel only changes when a push happens)."""
+    """White canvas with the shared header: date + place on the left; on the right, the battery
+    meter (always top-right, on every dashboard) above a small "updated 6:29pm" stamp. The stamp is
+    deliberately tiny so it isn't mistaken for a live clock (the panel only changes on a push)."""
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
     d.fontmode = "1"  # no anti-aliasing anywhere: pure black/white glyphs
     baseline, small = 21, medium(12)  # TRMNL12: the smallest font that stays readable on the panel
     date = fc.now.strftime("%a %-d %b")
     d.text((10, baseline), date, font=bold(21), fill="black", anchor="ls")
-    place = fc.place + ("  BATT LOW" if battery_mv and battery_level(battery_mv)[1] == "LOW" else "")
-    draw_text(d, (10 + d.textlength(date, font=bold(21)) + 8, baseline), place, small, anchor="ls")
+    draw_text(d, (10 + d.textlength(date, font=bold(21)) + 8, baseline), fc.place, small, anchor="ls")
+    battery_meter(d, W - 10, 3, battery_mv)
     stamp = f"{hour(fc.now)[:-2]}:{fc.now:%M}{hour(fc.now)[-2:]}"
-    draw_text(d, (W - 10, 13), "last updated", small, anchor="rs")
-    draw_text(d, (W - 10, 26), stamp, small, anchor="rs")
+    draw_text(d, (W - 10, 26), f"updated {stamp}", small, anchor="rs")
     d.line((0, 30, W, 30), fill="black")
     return img, d

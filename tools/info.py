@@ -24,6 +24,8 @@ async def main():
             extra = f" ({MODES.get(b, '?')})" if name == "display_mode" else ""
             print(f"  {name:13} 0x{b:02x}{extra}")
         print("info    :", e.info)
+        for m in e.messages[1:]:  # raw lines too: `slots=15 32767 255` has values info drops
+            print("  raw   :", m.decode(errors="replace"))
         drift = e.clock_drift()
         print("drift   :", "n/a" if drift is None else f"{drift:+.0f} s (includes ~1-4 s BLE latency)")
 
