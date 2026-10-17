@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from PIL import Image, ImageDraw  # noqa: E402
 
-from screens import note, proverb  # noqa: E402
+from screens import weather_haiku as note, weather_proverb as proverb  # noqa: E402
 
 
 def main():

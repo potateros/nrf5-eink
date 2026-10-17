@@ -1,4 +1,4 @@
-"""Layout A, "glance": big now block, next 12 h in 4 slots, today/tomorrow as one line each."""
+"""Layout A, "weather-glance": big now block, next 12 h in 4 slots, today/tomorrow as one line each."""
 import datetime as dt
 
 from PIL import Image

@@ -1,11 +1,11 @@
-"""Layout "at-a-glance": a 140 px left column (today's date, today's weather, the month) and a 260 px
+"""Layout "dashboard-glance": a 140 px left column (today's date, today's weather, the month) and a 260 px
 agenda of the coming days from macOS Calendar (epd/events.py).
 
 The split started as the owner's 300 | 500 idea scaled to 400 px (150 | 250), then narrowed to 140
 so agenda titles fit (130 crams the month grid). There's no shared header:
 the left column carries the date, so the battery meter sits bottom-left (the corner with the most
 room under a 5-6 row month) and the "updated" stamp bottom-right, in 24 h time like the agenda.
-Red: today in the month grid and the agenda's Today heading, Sundays and public holidays, rain >= WET,
+Red: today in the month grid, Sundays and public holidays, rain >= WET,
 whole rows from the work calendar ([calendar] red_sources, matched on the calendar's account), and a
 reminder's time (overdue ones show their due date instead, on Today).
 Calendars to leave out are set in config.toml [calendar] exclude.
@@ -112,11 +112,11 @@ def _agenda(d, days: dict[dt.date, list[dict]], today: dt.date, now: dt.datetime
         if y + head_h + row_h > bottom:
             break
         label = "Today" if k == 0 else "Tomorrow" if k == 1 else day.strftime("%A")
-        ink = RED if k == 0 else "black"
-        text_top(d, x0, y, label, bold(16), fill=ink)
-        text_top(d, x1, y + 4, day.strftime("%-d %b"), medium(12), align="r", fill=ink)
+        # day and date share one size and cap line, all black (owner, 2026-10-17)
+        text_top(d, x0, y, label, bold(16))
+        text_top(d, x1, y, day.strftime("%-d %b"), bold(16), align="r")
         y += head_h
-        d.line((x0, y - 3, x1, y - 3), fill=ink)
+        d.line((x0, y - 3, x1, y - 3), fill="black")
         if not items:
             text_top(d, x0, y + 3, "No events", medium(12))
             y += row_h

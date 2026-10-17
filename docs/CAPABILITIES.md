@@ -48,12 +48,12 @@ For protocol details and the history behind each finding, see [DEVICE.md](DEVICE
 | Battery telemetry | `bat=` is the ~3.0 V rail (2.91–2.93 V), not the 1100 mAh cell. Shown as an estimated % via the firmware's `batt_cal` curve (≈ 68 %), matching the calendar's glyph; it stays flat most of the cell's life and drops near the end. Logged per push to `.cache/battery.csv` | [verified] |
 | LED | Pin `0x12` in config. Upstream lights it during BUSY. A blue glow is visible on camera during refreshes | [source] / [verified] glow |
 | Buttons / wake pin | None configured (wake-up pin `0xFF`), so it advertises all the time and never deep-sleeps | [verified] config |
-| Storage slots | Notification `slots=15 <mask> 255`. Mask was `0` in the first session and `32767` (`0x7FFF`, 15 bits set) on 2026-10-16. Likely 15 slots, mask = occupied, 255 = none active. The commands to use them are unknown. 15 full frames (225–450 KB) can't fit in 192 KB of flash, so they are compressed, external, or not images | [verified] values / [open] meaning |
+| Storage slots + carousel | Notification `slots=15 <mask> 255` = count, used bitmask, current slot. Commands from the myetoys web tool (DEVICE.md §2.0b): `0x31 [0,n]` stores the next upload in slot n, `0x31 [1,n]` shows it, `0x32 [n]` deletes it, `0x33 [min_hi,min_lo]` rotates through stored images every N minutes, with no Mac needed. 15 full frames can't fit in 192 KB of flash, so they are compressed or external | [verified] values / [source] commands, untested |
 | `sid` | 64 hex chars, constant across connections (`F9196A6B…BA15`) | [verified] / [open] meaning |
 
 ### Battery life (estimate)
 
-Power budget on the current schedule (33 pushes/day: every 30 min 07:00–23:00 plus the 00:01 wipe), from typical part figures. These are not measured on this board: no current meter, and `bat=` is the regulated rail.
+Power budget on the current schedule (33 pushes/day: every 30 min 07:00–23:00 plus the 00:01 re-push), from typical part figures. These are not measured on this board: no current meter, and `bat=` is the regulated rail.
 
 | Case | Per push (22 s refresh + ~45 s connected) | Idle (advertising, no wake pin) | Per day | Full 1100 mAh charge (85 % usable, ~2 %/month self-discharge) |
 | --- | --- | --- | --- | --- |
@@ -104,9 +104,39 @@ await epd.show(black, red)                # EPD.show already sends both planes a
 
 `epd.image.preview(img, red=True, dither=False)` shows exactly what the panel gets. Since 2026-10-16 `epd/cli.py` pushes and previews every layout with red (accents for wet hours, haze and battery LOW; see README design decisions).
 
+## Image slots and carousel
+
+From the myetoys web tool (DEVICE.md §2.0b), **verified on this unit 2026-10-17** (§2.0c): store, show and carousel work with full frames, and a normal push ends a carousel.
+
+### How to use them
+
+| Goal | Commands |
+| --- | --- |
+| Store a frame in slot n | `0x31 [0, n]`, then the normal `INIT` → image chunks → `REFRESH` (so storing also displays it) |
+| Show slot n | `0x31 [1, n]`, then `SET_TIME` mode 0 (picture). One short write instead of a ~10 s upload; the panel still does a full refresh, so the 30 s hold still applies |
+| Delete slot n | `0x32 [n]` (irreversible) |
+| Rotate through used slots | `0x33 [min >> 8, min & 0xFF]`. Runs on the device, no Mac needed. Any `SET_TIME` mode change stops it |
+
+From a phone, the myetoys web tool (Chrome on Android, Bluefy on iOS) has buttons for all four, so stored screens can be switched without the Mac.
+
+### What it's good for
+
+The weather dashboards don't gain much. They are live data the Mac already pushes every 30 min, and a stored forecast goes stale. The firmware's own midnight calendar is a better fallback than an old forecast on loop. Where slots do help:
+
+1. **Static screens, switchable from the phone.** Store a few that never go stale (guest Wi-Fi QR, "in a meeting / do not disturb", "away until …", a photo or poster) and flip to one from the phone's web tool, wherever the Mac is. **Catch:** showing slot n makes n the target for the next upload (byte 13), so the next scheduled push overwrites it. This only works if pushes write to a reserved scratch slot (`0x31 [0, 14]` before each upload) or the schedule is paused.
+2. **Away / offline mode.** Before a trip, fill the slots with timeless content (proverbs, art, photos, xkcd) and start a carousel every few hours. The panel stays alive with no Mac and no BLE sessions. Each change is still a full refresh, so battery use is about the same per change as a push minus the ~45 s BLE link.
+3. **Two live layouts on one panel.** Each push stores the weather layout in slot 0 and the agenda in slot 1, then ends with `SET_SLIDE 15` instead of the calendar fallback. The panel alternates on its own between pushes. The cost is the midnight dead-man: if the Mac stops, two stale frames rotate forever.
+
+### Unknowns
+
+- ~~Plain uploads~~: every push is stored in the current slot (byte 13) [verified]. That's one slot rewritten ~33 times a day; see the wear estimate in DEVICE.md §2.0c.
+- ~~Current slot~~: byte 13 [verified].
+- **Carousel lifetime:** a normal push ends it [verified]; the midnight redraw and a power cycle are untested.
+- **Store vs display:** storing always displays the frame too (the upload ends with REFRESH). So use 3 means visible refreshes for each stored layout.
+
 ## Open
 
-1. **Slots:** what fills them (the mask went 0 → `0x7FFF` across a day of pushes, and stayed `0x7FFF` through five more pushes, a SET_TIME and a midnight redraw on 2026-10-16), and the commands to store, show or rotate. There is no vendor app to sniff (the tag shipped with only a link to the open-source project). No-argument probes of `0x31`–`0x4F` found nothing; probing with arguments or other ranges risks flash writes on a device with no recovery path. Owner's decision (2026-10-16): leave it, we know enough. Only a firmware dump over SWD would settle it.
-2. `sid` (constant 64-hex, SHA-256-sized; not SHA-256/SHA3/BLAKE2s of the name, `5E5D` or the version string; the advertising data carries only the name and service UUID, so the MAC/FICR ID it may hash can't be read over BLE) and config byte 13 (`0x04`, variant-only: upstream's config is 13 bytes; unchanged by every command we send). Neither can be decoded without the firmware image.
+1. **Slots:** the commands were found on 2026-10-17 in the myetoys build of the web tool (DEVICE.md §2.0b), which reopens the 2026-10-16 "leave it" decision. Still open: what fills them without `SET_SLOT` (the mask went 0 → `0x7FFF` across a day of plain pushes), what they hold, which field is "current", and how a carousel interacts with our `SET_CONFIG` fallback and the midnight redraw. Testing needs device writes (owner's call).
+2. ~~`sid`~~: a licence ID the myetoys tool sends to a paid template renderer (DEVICE.md §2). Old notes: `sid` (constant 64-hex, SHA-256-sized; not SHA-256/SHA3/BLAKE2s of the name, `5E5D` or the version string; the advertising data carries only the name and service UUID, so the MAC/FICR ID it may hash can't be read over BLE) and config byte 13 (`0x04`, variant-only: upstream's config is 13 bytes; unchanged by every command we send). Neither can be decoded without the firmware image.
 3. ~~Midnight switch~~: verified 2026-10-16.
 4. ~~Battery days left~~: estimated from a power budget (see Battery life below). `.cache/battery.csv` will refine it when the rail starts to sag.

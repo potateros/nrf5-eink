@@ -1,8 +1,8 @@
-"""LLM-written weather haiku for the "note" layout's side panel (OpenRouter, see epd/llm.py).
+"""LLM-written weather haiku for the "weather-haiku" layout's side panel (OpenRouter, see epd/llm.py).
 
 Cached in .cache/quip.json and regenerated only when the weather situation changes (condition,
 until-time, rain window, haze band, or a new 3-hour block), so 30-minute pushes don't call the
-model every time. Returns None on any failure so the layout can fall back to config.toml [note].
+model every time. Returns None on any failure so the layout can fall back to config.toml [weather-haiku].
 """
 import datetime as dt
 import json

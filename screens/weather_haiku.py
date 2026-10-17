@@ -1,4 +1,4 @@
-"""Layout "note": glance with a compact main block, a side panel for an LLM weather haiku, and a
+"""Layout "weather-haiku": weather-glance with a compact main block, a side panel for an LLM weather haiku, and a
 6-column hourly strip.
 
 Grid: the hourly strip is 6 columns of 400/6 px. The main block spans `main_cols` of them and the
@@ -40,11 +40,11 @@ def panel_text_width(main_cols: float) -> int:
 
 
 def note_text(data: dict) -> tuple[str, str | None]:
-    """The LLM quip if there is one, else the fallback quote in config.toml [note]."""
+    """The LLM quip if there is one, else the fallback quote in config.toml [weather-haiku]."""
     if data.get("quip"):
         return data["quip"], None
     from epd.cli import load_config  # lazy: cli imports layouts lazily too
-    note = load_config().get("note", {})
+    note = load_config().get("weather-haiku", {})
     return note.get("text", ""), note.get("by")
 
 

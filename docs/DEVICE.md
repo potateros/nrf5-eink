@@ -8,7 +8,7 @@ Status tags:
 - **[online]** reported by someone else on similar hardware
 - **[open]** unknown / to investigate
 
-Last updated: 2026-10-16 (red verified, controller identified, seller listing + upstream v1.10 source/web tool review). Capability overview: [CAPABILITIES.md](CAPABILITIES.md)
+Last updated: 2026-10-17 (slot/carousel opcodes found in the myetoys web tool, §2.0b). Before that, 2026-10-16: red verified, controller identified, seller listing + upstream v1.10 source/web tool review. Capability overview: [CAPABILITIES.md](CAPABILITIES.md)
 
 ---
 
@@ -37,8 +37,8 @@ A **non-public variant** of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nR
 | Image transfer RLE | Supported (`rle=1`) | [verified] |
 | MTU | 247 negotiated, firmware reports `mtu=244` → 242 bytes image data per packet | [verified] |
 | OTA | Nordic **Secure DFU** service `FE59` (buttonless) present. Upstream publishes its signing key (`tools/priv.pem`) and bootloader hex, but we don't know whether the vendor's bootloader trusts that key, and flashing upstream would lose the variant's extras (§2.0) anyway → do **not** attempt | [verified] presence / [source] key |
-| Image "slots" | Notifies `slots=15 <mask> 255`. Mask `0` in the first session, `32767` (`0x7FFF`, all 15 bits) on the evening of 2026-10-16. Likely 15 slots / occupied mask / active (255 = none). Commands unknown and not in any public source (GitHub code search for the strings: nothing). 15 raw frames wouldn't fit in 192 KB flash | [verified] values / [open] meaning |
-| `sid=` | 64-hex-char ID (`F9196A6B…BA15`), looks like a SHA-256 — device/serial hash? | [open] |
+| Image "slots" | Notifies `slots=15 <mask> 255`. Mask `0` in the first session, `32767` (`0x7FFF`, all 15 bits) on the evening of 2026-10-16. The myetoys web tool (§2.0b) reads it as `slots=<count> <used bitmask> <current slot>` (bit set = used) and drives it with `0x31`–`0x33` (§4). 15 raw frames (60 KB each with red) wouldn't fit in 192 KB flash, so storage is compressed or external | [verified] values / [source] meaning |
+| `sid=` | 64-hex-char ID (`F9196A6B…BA15`). The myetoys web tool sends it as the `X-Machine-ID` header to a **paid remote-template renderer** (`POST https://25565.shop/render`) when a template is rendered remotely; a 401 means "paid feature: if your device is registered, ask the seller for an OTA package". So it's a licence/device ID. Keep it out of anything public; we never call that service | [source] 2026-10-17 |
 
 ### 2.0 Seller listing (Pinduoduo, "upgraded version")
 
@@ -83,6 +83,37 @@ The vendor's firmware still shows upstream's **"SYNC TIME!"** box (§6), which s
 | Also: clear screen, raw command box (hex, first byte = opcode), image upload with crop and dithering (Floyd-Steinberg / Atkinson / Bayer; BW, BWR, BWRY, 6-colour), and a paint/text canvas (the listing's "doodle") | [source] |
 | **Risk for this unit:** the "设置驱动" (set driver) button sends `SET_PINS` + `INIT <model>`. The driver list stops at `0x11`, so any choice overwrites our model `0x16`. Don't press it | [source] |
 
+### 2.0b myetoys web tool (www.myetoys.com/EPD-nRF5/) — the variant's own client
+
+myetoys.com (墨韵时光) publishes guides for TSL0922-firmware calendars, sells them (Goofish listing), and hosts **its own build of the web tool** that drives the variant's extras. Downloaded and decoded 2026-10-17 (obfuscated Vite bundle `cache/index-BUjqGby-.js`, last-modified 2026-01-30; decoded copy only in the session scratchpad, never run against the device). Its guide also mentions a "群友开发的小程序" (a mini-program written by a community member) reached by QR code, with no support from the author. It is probably the WeChat client the seller listing means.
+
+| Finding | Status |
+| --- | --- |
+| Command enum: upstream's plus `SET_SLOT: 0x31`, `FREE_SLOT: 0x32`, `SET_SLIDE: 0x33` (§4). No `0x93` | [source] |
+| A slot panel ("选择图片槽位") appears only when `slots=` reports a count > 0: one button per slot (● used / ○ empty), **显示槽位** (show), **删除槽位** (delete, "irreversible"), and **启动轮播** (start carousel) with an interval in minutes (default 60) | [source] |
+| Upload with slots: `SET_SLOT [0, n]`, then the usual `INIT` → image chunks → `REFRESH`. So the target slot survives `INIT`, and the uploaded frame is stored in slot n (it warns before overwriting a used slot) | [source] |
+| Show: `SET_SLOT [1, n]`, then `SET_TIME` with mode 0 (picture) | [source] |
+| Carousel: `SET_SLIDE [interval_hi, interval_lo]` (u16 big-endian minutes). "Press another mode button under device control to leave carousel mode", so any `SET_TIME` mode change ends it | [source] |
+| It treats config byte 13 as the current slot, then overwrites that with the `slots=` third field | [source] |
+| **Slot test on this unit** (2026-10-17, `tools/experiments/slot_test.py`, webcam frames in `.cache/slot_test/`): see §2.0c | [verified] |
+| New notification `clock_enable=0|1`: on 0 the clock button becomes "刷新模式" (refresh mode). Our unit never sends it | [source] / [verified] absent |
+| Templates (to-do, timetable, card, …) are canvas layouts rendered in the browser, or remotely via the paid service (`sid`, §2), then uploaded as an ordinary image. They aren't firmware features | [source] |
+| Driver list stops at `0x0c`; no model `0x16`, so its "set driver" button is as dangerous as upstream's | [source] |
+| Image chunks use flag `0x0F` (black) / `0x00` (red), with `0xF0` OR'd in after the first chunk, and no RLE. That's not our modern bit layout (§5.1), yet both work, so the variant accepts either | [source] |
+
+### 2.0c Slot test results (2026-10-17, owner-approved)
+
+| Finding | Status |
+| --- | --- |
+| **Show works.** `0x31 [1, n]` + `SET_TIME` mode 0 redraws slot n (full refresh). Afterwards byte 13 = n, `slots=` third field = n, byte 11 = 0 (picture) | [verified] |
+| **Store works, full frame, with RLE.** `0x31 [0, n]` then our normal `EPD.show()` (INIT, RLE black + red planes, REFRESH) stored a 400×300 marker frame in slot n; showing it later reproduced it top to bottom, red included. Storing also displays it | [verified] |
+| **Every plain push is saved into the current slot (byte 13).** After the test left byte 13 = 7, a normal push, then a different slot, then showing 7 again gave back that push. Byte 13 sat at 4 since the first day, so every scheduled push rewrote slot 4. `slots=` third field is `255` after boot until a slot is shown, while byte 13 (persisted) keeps the target. So the 0 → `0x7FFF` mask was our first day's pushes landing in whatever slot was current | [verified] |
+| **The first day's slots were half frames**: only the top ~145 of 300 rows were intact, with noise below (and red bleeding through in some). Our early scripts disconnected ~2 s after REFRESH. A likely cause: the flash write runs after REFRESH and was cut short | [verified] observation / [open] cause |
+| **Carousel works.** `0x33 [0, 1]` rotated through the stored slots about once a minute with no Mac connected. Byte 11 stayed `0`, so the carousel isn't stored there; byte 13 didn't change either | [verified] |
+| **A normal push ends the carousel.** After a push (INIT, upload, REFRESH, `SET_CONFIG` calendar) the pushed frame stayed for 2.5 min of watching. So the scheduled pipeline is safe; a carousel only lasts until the next push | [verified] |
+| **Flash wear (estimate).** With every push rewriting one slot, that slot takes ~33 writes a day. nRF52 flash is rated for 10 000 erase cycles, roughly 300 days for one page, *if* each push erases the same page. We don't know how the firmware lays the slots out (15 full frames don't fit in 192 KB raw, so they're compressed or wear-levelled). Cheap mitigation if needed: send `0x31 [0, k]` before each push with k rotating through the 15 slots | [estimate] / [open] |
+| Untested: whether the carousel survives the midnight redraw or a power cycle; `0x32` FREE_SLOT | [open] |
+
 ### 2.1 Notifications sent after `INIT` (0x01)
 
 Observed in order:
@@ -112,7 +143,7 @@ Current: `14 13 06 05 04 03 02 16 ff 12 07 01 00 04`
 | 10 | EN (panel power) pin | `0x07` | [source] |
 | 11 | **Display mode** — 0 picture, 1 calendar, 2 clock | was `0x02` (clock) out of the box; we set `0x01` | [verified] |
 | 12 | Week start (0 = Sunday) | `0x00` | [source] |
-| 13 | Not in upstream | was `0xFF`, became `0x04` after our first `SET_TIME` + `SET_CONFIG` | [open] |
+| 13 | Not in upstream: **current slot**, where the next upload is stored (§2.0c) | was `0xFF`, then `0x04` from the first day until the slot test on 2026-10-17 | [verified] |
 
 Pins match upstream's built-in `EPD_CFG_52811` default.
 
@@ -136,7 +167,10 @@ Every write is `[cmd][args…]`.
 | `0x20` | SET_TIME | `u32 BE unix ts`, `i8 tz hours`, `u8 mode` | Sets RTC, sets display mode, **forces a built-in redraw** (full refresh). The redraw runs **asynchronously** (app scheduler), so anything sent within ~25 s can interleave with it (we saw a mixed screen with the built-in `NRF_EPD_5E5D` label) | [verified] |
 | `0x21` | SET_WEEK_START | `u8 0–6` | Calendar week start | [source] |
 | `0x30` | WRITE_IMAGE | `flags`, data | Writes image RAM. See §5 | [verified] partially |
-| `0x31–0x33` | WRITE_BLOCK / QUERY_STATUS / RESET_TRANSFER | CRC'd block transfer | Exists in DYC fork only. On this unit `0x31`–`0x4F` sent with no arguments do nothing visible (no reply, no state change, no redraw; probed twice 2026-10-16) | [verified] no-arg / [open] with args |
+| `0x31` | SET_SLOT | `u8 op`, `u8 slot` | Variant (§2.0b): op 0 = store the next upload in `slot`, op 1 = show `slot` (followed by `SET_TIME` mode 0). Both set config byte 13 to `slot` (seen with show, and with op 0 followed by an upload; op 0 alone is [open], and the web tool relies on it to re-point the target at scratch slot 14). (In the DYC fork `0x31`–`0x33` are a CRC'd block transfer instead.) | [verified] 2026-10-17 |
+| `0x32` | FREE_SLOT | `u8 slot` | Variant: delete the stored image. Irreversible | [source] — needs owner OK |
+| `0x33` | SET_SLIDE | `u16 BE minutes` | Variant: start the carousel through used slots. A normal push ends it; the tool says any `SET_TIME` mode change does too | [verified] 2026-10-17 |
+| `0x34–0x4F` | — | — | `0x31`–`0x4F` sent with no arguments do nothing visible (no reply, no state change, no redraw; probed twice 2026-10-16). That fits `0x31`–`0x33` returning early on a short write | [verified] no-arg |
 | `0x93` | GET_INFO | — | Only in an unmerged upstream PR (#20, 2026-10-06, for an nRF52811 + SSD1619 4.2" BWR tag): replies `v=<mV> m=<mode>`. Not in upstream or (as far as we know) the variant | [online] / [open] on this unit |
 | `0x90` | SET_CONFIG | 14 config bytes | Overwrites config in flash, **no redraw**. Read config first, change one byte, write back | [verified] |
 | `0x91` | SYS_RESET | — | Reboot | [source] |
@@ -224,7 +258,7 @@ In both cases a normal push afterwards worked fine, so the probes did no lasting
 
 ## 7. How we use it (this repo)
 
-See the [README](../README.md) for the software. Pushes are scheduled by homelab-hq (every 30 min 07:00–23:00, wipe at 00:01); see README "Scheduling". `uv run python tools/info.py` dumps everything the device reports (version, decoded config, battery, clock drift).
+See the [README](../README.md) for the software. Pushes are scheduled by homelab-hq (every 30 min 07:00–23:00, re-push at 00:01); see README "Scheduling". `uv run python tools/info.py` dumps everything the device reports (version, decoded config, battery, clock drift).
 
 
 - Host (Mac) renders screens with Pillow and pushes over BLE (bleak). The display is **passive** and never fetches anything on its own.
@@ -248,8 +282,8 @@ See the [README](../README.md) for the software. Pushes are scheduled by homelab
 ## 9. Open questions
 
 1. ~~What is model `0x16`? Does red work?~~ Resolved 2026-10-16: SSD16xx-compatible controller, red works (§5.1).
-2. What are the 15 "slots", and how do we use them? Could the device rotate stored images on its own? The seller listing says the upgraded firmware has a 6-image carousel plus templates (to-do, timetable, card, QR) (§2.0); the vendor's WeChat mini-program is the likely client for them; the "web page" buyers are sent to is upstream's tool, which doesn't use slots (§2.0a).
-3. What is `sid`, and what is config byte 13?
+2. ~~Slots~~: resolved 2026-10-17 (§2.0b, §2.0c). Store, show and carousel verified; every plain push lands in the current slot. Still open: flash layout and wear, the carousel across midnight or a power cycle, and FREE_SLOT.
+3. ~~What is `sid`, and what is config byte 13?~~ `sid` = licence ID for the paid template renderer; byte 13 = current slot per the myetoys tool (§2.0b) [source].
 4. ~~Does calendar mode switch over at midnight?~~ Yes, verified 2026-10-16 (§6).
 5. Config byte 13 (`0x04`): upstream's config is 13 bytes, so it's variant-only. Unchanged across SET_TIME, SET_CONFIG, CLEAR-less pushes and REFRESH on 2026-10-16.
 6. Does the variant answer `0x93` (GET_INFO, PR #20) or expose the panel temperature? Low priority: `INIT` already gives `bat=`.
@@ -259,6 +293,7 @@ See the [README](../README.md) for the software. Pushes are scheduled by homelab
 - [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) — upstream firmware + web tool (protocol, RLE, modes); live tool at [tsl0922.github.io/EPD-nRF5](https://tsl0922.github.io/EPD-nRF5)
 - [tsl0922/EPD-nRF5#20](https://github.com/tsl0922/EPD-nRF5/pull/20) — unmerged: `0x93` GET_INFO, GCC Makefile, Windows host for a 4.2" nRF52811 BWR tag
 - Pinduoduo seller listing (owner's screenshots, 2026-10-16) — §2.0
+- [myetoys.com web tool](https://www.myetoys.com/EPD-nRF5/) and [TSL0922 firmware guide](https://www.myetoys.com/tsl0922/34.html) — the variant's slot/carousel client, §2.0b
 - [YCD12/EPD-nRF5_DYC](https://github.com/YCD12/EPD-nRF5_DYC) — fork with legacy flags + CRC block transfer
 - [askfanxiaojun/epd-ai-quota-display](https://github.com/askfanxiaojun/epd-ai-quota-display) — macOS + BLE pusher for a 400×300 BWR nRF52811 tag; legacy-flag protocol notes
 - [jam422470459/EPD-nRF52-hema213](https://github.com/jam422470459/EPD-nRF52-hema213), [jyh9521/EPD-nRF5-JP](https://github.com/jyh9521/EPD-nRF5-JP) — other nRF52811 forks

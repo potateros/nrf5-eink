@@ -1,19 +1,20 @@
 # nrf5-eink settings. `uv run python -m epd.cli use <screen>` rewrites the screen line.
 
-# Layout pushed when no screen is named: glance | rain | note | proverb | at-a-glance | detailed
-screen = "auto"
+# Layout pushed when no screen is named: weather-glance | weather-rain | weather-haiku | weather-proverb |
+# dashboard-glance | weather-detailed | auto
+screen = "dashboard-glance"
 
 # Punggol, Singapore
 lat = 1.4043
 lon = 103.9021
 
-# Fallback side-panel text for the "note" layout, used when the LLM haiku is unavailable
+# Fallback side-panel text for the "weather-haiku" layout, used when the LLM haiku is unavailable
 # (no OPENROUTER_API_KEY in .env, model busy, or a reply that doesn't fit)
-[note]
+[weather-haiku]
 text = "The best time to plant a tree was 20 years ago. The second best time is now."
 by = "Chinese proverb"
 
-# "at-a-glance" layout: macOS Calendar calendars to leave out of the agenda (everything else is shown,
+# "dashboard-glance" layout: macOS Calendar calendars to leave out of the agenda (everything else is shown,
 # so newly added accounts appear on their own). Names as in Calendar.app.
 [calendar]
 exclude = ["Routines"]

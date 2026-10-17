@@ -5,6 +5,7 @@
   uv run python -m epd.cli use rain                    # switch the default screen
   uv run python -m epd.cli show rain                   # switch the default screen and push it now
   uv run python -m epd.cli list                        # available screens (* = current)
+  uv run eink web                                      # local Web Bluetooth tool (--background: detached)
 """
 import argparse
 import csv
@@ -25,15 +26,15 @@ CONFIG = Path(__file__).resolve().parent.parent / "config.toml"
 
 # name -> (module, description). Each module has fetch(lat, lon) and render(data, ..., battery_mv=).
 SCREENS = {
-    "glance": ("screens.glance", "big now, next 12 h in 4 slots, today/tomorrow lines"),
-    "rain": ("screens.rain", "rain headline + 24 h chance-of-rain chart"),
-    "note": ("screens.note", "3/6 now block + 3/6 LLM weather haiku panel, 6 x 2-hourly slots"),
-    "proverb": ("screens.proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
-    "at-a-glance": ("screens.at_a_glance", "date, weather + month | 7-day agenda from macOS Calendar"),
-    "detailed": ("screens.weather", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
-    "auto": ("screens.auto", "rain when heavy rain is coming (any rain before noon), else proverb"),
+    "weather-glance": ("screens.weather_glance", "big now, next 12 h in 4 slots, today/tomorrow lines"),
+    "weather-rain": ("screens.weather_rain", "rain headline + 24 h chance-of-rain chart"),
+    "weather-haiku": ("screens.weather_haiku", "3/6 now block + 3/6 LLM weather haiku panel, 6 x 2-hourly slots"),
+    "weather-proverb": ("screens.weather_proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
+    "dashboard-glance": ("screens.dashboard_glance", "date, weather + month | 7-day agenda from macOS Calendar"),
+    "weather-detailed": ("screens.weather", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
+    "auto": ("screens.auto", "weather-rain when heavy rain is coming (any rain before noon), else weather-proverb"),
 }
-ALIASES = {"weather": "detailed"}
+ALIASES: dict[str, str] = {}
 
 
 def load_config() -> dict:
@@ -160,6 +161,13 @@ async def push(name: str, cfg: dict, wipe: bool, e) -> Image.Image | None:
 
 def main():
     cfg = load_config()
+    if len(sys.argv) > 1 and sys.argv[1] == "web":
+        from . import web
+        if "--background" in sys.argv:
+            raise SystemExit(web.launch())
+        idle = sys.argv[sys.argv.index("--idle") + 1] if "--idle" in sys.argv else None
+        web.serve(open_page="--no-open" not in sys.argv, idle=int(idle) if idle else None)
+        return
     if len(sys.argv) > 1 and sys.argv[1] in ("use", "show", "list"):
         if sys.argv[1] in ("use", "show"):
             if len(sys.argv) < 3:

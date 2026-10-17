@@ -9,25 +9,25 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 
 ## Current state (2026-10-17)
 
-- **On the display:** `auto` is the committed default (`rain` when heavy rain is coming, else `proverb`); `config.toml` on this Mac is currently switched to `at-a-glance` (calendar + reminders agenda).
-- **Updates:** homelab-hq pushes every 30 min from 07:00 to 23:00 and wipes at 00:01, just after the firmware's own midnight calendar redraw, so the screen shows a fresh dashboard overnight. If the Mac stops, the firmware's calendar takes over at the next midnight.
+- **On the display:** `auto` is the committed default (`weather-rain` when heavy rain is coming, else `weather-proverb`); `config.toml` on this Mac is currently switched to `dashboard-glance` (calendar + reminders agenda).
+- **Updates:** homelab-hq pushes every 30 min from 07:00 to 23:00 and once more at 00:01, just after the firmware's own midnight calendar redraw, so the screen shows a fresh dashboard overnight. If the Mac stops, the firmware's calendar takes over at the next midnight.
 - **Six layouts plus `auto`** to switch between (below); `show <name>` switches and pushes in one go. Failed pushes retry once and are logged to `.cache/push.log`.
-- **Work in progress:** full-screen calendar, reminders-only and portrait mockups in [wip/](wip/README.md) (not registered, never pushed). The `note` haiku layout needs `OPENROUTER_API_KEY` in `.env` (present on this Mac).
-- **Known limits:** no live clock (see below), battery % is an estimate (the firmware measures the regulated rail), the firmware's 15 image slots remain undiscovered.
+- **Work in progress:** full-screen calendar, reminders-only and portrait mockups in [wip/](wip/README.md) (not registered, never pushed). The `weather-haiku` haiku layout needs `OPENROUTER_API_KEY` in `.env` (present on this Mac).
+- **Known limits:** no live clock (see below), battery % is an estimate (the firmware measures the regulated rail), the firmware's 15 image slots and carousel work but aren't used by the pushes yet (docs/DEVICE.md §2.0b–c).
 
 ## Available dashboards
 
-Switch with `uv run python -m epd.cli use <name>` (takes effect on the next scheduled push), or `show <name>` to switch and push now. `list` shows the current one.
+Switch with `uv run eink use <name>` (takes effect on the next scheduled push), or `show <name>` to switch and push now. `list` shows the current one.
 
-| `proverb`: weather + proverb of the day (default) | `note`: weather + LLM haiku |
+| `weather-proverb`: weather + proverb of the day (default) | `weather-haiku`: weather + LLM haiku |
 | --- | --- |
-| ![proverb layout](docs/images/proverb.png) | ![note layout](docs/images/note.png) |
+| ![weather-proverb layout](docs/images/weather-proverb.png) | ![weather-haiku layout](docs/images/weather-haiku.png) |
 | 4/6 now block, 2/6 proverb panel, 6 × 2-hourly slots | 3/6 now block, 3/6 haiku panel, 6 × 2-hourly slots |
-| **`glance`**: weather at a glance | **`rain`**: when will it rain? |
-| ![glance layout](docs/images/glance.png) | ![rain layout](docs/images/rain.png) |
+| **`weather-glance`**: weather at a glance | **`weather-rain`**: when will it rain? |
+| ![weather-glance layout](docs/images/weather-glance.png) | ![weather-rain layout](docs/images/weather-rain.png) |
 | Big now block, 4 × 3-hourly slots | Rain-window headline, 24 h rain chart |
-| **`at-a-glance`**: today + the week ahead | **`detailed`**: the original, dense layout |
-| ![at-a-glance layout](docs/images/at-a-glance.png) | ![detailed layout](docs/images/detailed.png) |
+| **`dashboard-glance`**: today + the week ahead | **`weather-detailed`**: the original, dense layout |
+| ![dashboard-glance layout](docs/images/dashboard-glance.png) | ![weather-detailed layout](docs/images/weather-detailed.png) |
 | Date, today's weather, month · 7-day agenda from macOS Calendar | Everything at once; too cluttered to read on the panel, kept for reference |
 
 Exact frames as sent to the panel (black, white, red), shown at 2×, with live Punggol data from a hazy October evening. Regenerate with `uv run python tools/screenshots.py`.
@@ -35,18 +35,28 @@ Exact frames as sent to the panel (black, white, red), shown at 2×, with live P
 ## Quick start
 
 ```sh
-uv run python -m epd.cli --push                  # push the current layout (config.toml) (~40 s)
-uv run python -m epd.cli --push --wipe           # full clear first (~70 s); ~once a day for ghosting
-uv run python -m epd.cli list                    # layouts; * marks the current one
-uv run python -m epd.cli use rain                # switch the current layout (takes effect on the next push)
-uv run python -m epd.cli show rain               # switch the current layout and push it now (~40 s)
-uv run python -m epd.cli rain --preview out.png  # render any layout without pushing (--bat 2800 to show BATT LOW)
+uv run eink --push                  # push the current layout (config.toml) (~40 s)
+uv run eink --push --wipe           # full clear first (~70 s); by hand if ghosting ever shows
+uv run eink list                    # layouts; * marks the current one
+uv run eink use weather-rain                # switch the current layout (takes effect on the next push)
+uv run eink show weather-rain               # switch the current layout and push it now (~40 s)
+uv run eink weather-rain --preview out.png  # render any layout without pushing (--bat 2800 to show BATT LOW)
 uv run python tools/info.py                      # what the device reports (config, battery, clock)
+uv run eink web                     # local Web Bluetooth tool in Chrome: pictures, slots, carousel, modes
 uv run python tools/testcard.py                  # black/white test card
 ```
 
 Requirements: macOS with Bluetooth, [uv](https://docs.astral.sh/uv/). Dependencies: `bleak`, `pillow`.
 Close any browser/web-tool connection to the display first; it accepts one central at a time.
+
+### Local web tool (`eink web`)
+
+A small private replacement for the vendor's web tool, written from scratch from the protocol in docs/DEVICE.md (§2.0b has the slot commands, read out of the vendor's bundle). `uv run eink web` serves `web/` on `127.0.0.1:8742` and opens Chrome (Safari has no Web Bluetooth). It can send any image (fit/rotate, black+red or black only, no dither / Floyd–Steinberg / Atkinson, exact preview), pick one of this repo's dashboards from a thumbnail gallery (the README screenshots, shown at once, then swapped for a live render) and send it, store pictures in the 15 slots, show or delete a slot, start the on-device carousel, and switch calendar/clock/clear. Its "How to use" tab explains each feature. From hq: select `EINK-TOOL` and press **R** (`uv run eink web --background`: starts it detached, or just opens Chrome if it's already up; it stops itself 10 min after the last tab closes).
+
+- **Private:** a Content-Security-Policy limits the page to the local server; the server answers only to `localhost`/`127.0.0.1` Host headers. The vendor's paid remote templates and its `sid` upload are left out. Only the optional layout render goes online (weather, calendar, haiku), as a push does.
+- **Slots:** every upload is stored in the current slot, so one-off sends go to scratch slot 14, and after keeping or showing a slot the page re-points the target at 14 so the scheduled push can't overwrite it. A shown picture only stays on screen while the push job is on hold.
+- **Same rules as the CLI:** red plane always sent, 30 s hold after refreshes, config writes change only the mode byte from a fresh read. Pin/driver setting, config erase, deep sleep and DFU are blocked.
+- **One central at a time:** `hq hold eink-dashboard-1` first, `hq resume eink-dashboard-1` after.
 
 ## Layouts
 
@@ -54,15 +64,15 @@ Switch with `epd.cli use <name>`. The choice is stored in [`config.toml`](config
 
 | Name | What it shows | Use when |
 | --- | --- | --- |
-| `glance` (layout A) | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line unless PSI is "Good" (≤ 50), red once "Unhealthy" (> 100) · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, 24 h rain sparkline, rain %) | Everyday |
-| `rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI unless "Good" (red when > 100) · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
-| `note` | Header · compact now block (icon + temperature, condition, until/haze) spanning 3 of 6 columns, haiku panel the other 3 · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines with rain sparklines | When you want a little personality |
-| `proverb` **(default)** | Same structure as `note`, but the main block spans 4 of 6 columns and the 2/6 panel shows the **proverb of the day** from [`data/proverbs.json`](data/proverbs.json) with its origin | Calm, no network beyond the weather |
-| `at-a-glance` | No shared header. Left 140 px: weekday, big day number with month over year, today's icon + high/low, condition, rain % · month grid (Monday first; today a red box; Sundays and Singapore public holidays red) · battery meter bottom-left. Right 260 px: **agenda** of the next 7 days from macOS Calendar, grouped by day (Today always, empty days skipped), "all day" or 24 h start time + title (Workato rows red), dated **reminders** with a hollow circle and red time (overdue ones under Today), "+N more" when it runs out of room · "updated 04:41" bottom-right | Days with plans |
-| `auto` | Not a layout of its own: picks **`rain`** when a lot of rain is coming, else **`proverb`**. Before noon, any hour left today with chance ≥ 50% counts (you're still planning the day); from noon, only the next 6 h count and they need ≥ 70%. Rain falling now (NEA nowcast) always counts. Each push logs its choice (`auto: rain (98% at 17:00)`) | Leave it on: the 30-min schedule then follows the weather |
-| `detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
+| `weather-glance` (layout A) | Header · big icon + temperature (top-aligned with the condition), NEA condition, "until 6.30pm", haze line unless PSI is "Good" (≤ 50), red once "Unhealthy" (> 100) · next 12 h as 4 slots 3 h apart (hour, icon, temp, rain bar) · Today and Tmrw as one line each (icon, high/low, 24 h rain sparkline, rain %) | Everyday |
+| `weather-rain` (layout B) | Header · headline that answers "when does it rain?" ("Rain 6pm–9pm", "Rain tmrw from 11am", "Dry next 24 hours") + PSI unless "Good" (red when > 100) · "Now 30° · thundery showers" · 24 h chance-of-rain bar chart with a dotted 50% line · Today/Tmrw high/low | Wet-season days |
+| `weather-haiku` | Header · compact now block (icon + temperature, condition, until/haze) spanning 3 of 6 columns, haiku panel the other 3 · side panel with an **LLM-written weather haiku** · next 12 h as 6 slots 2 h apart · Today/Tmrw lines with rain sparklines | When you want a little personality |
+| `weather-proverb` **(default)** | Same structure as `weather-haiku`, but the main block spans 4 of 6 columns and the 2/6 panel shows the **proverb of the day** from [`data/proverbs.json`](data/proverbs.json) with its origin | Calm, no network beyond the weather |
+| `dashboard-glance` | No shared header. Left 140 px: weekday, big day number with month over year, today's icon + high/low, condition, rain % · month grid (Monday first; today a red box; Sundays and Singapore public holidays red) · battery meter bottom-left. Right 260 px: **agenda** of the next 7 days from macOS Calendar, grouped by day (Today always, empty days skipped), "all day" or 24 h start time + title (Workato rows red), dated **reminders** with a hollow circle and red time (overdue ones under Today), "+N more" when it runs out of room · "updated 04:41" bottom-right | Days with plans |
+| `auto` | Not a layout of its own: picks **`weather-rain`** when a lot of rain is coming, else **`weather-proverb`**. Before noon, any hour left today with chance ≥ 50% counts (you're still planning the day); from noon, only the next 6 h count and they need ≥ 70%. Rain falling now (NEA nowcast) always counts. Each push logs its choice (`auto: rain (98% at 17:00)`) | Leave it on: the 30-min schedule then follows the weather |
+| `weather-detailed` | The original dense screen: now block with RH/wind/PSI, 8 hourly slots 2 h apart, Today/Tmrw cards with rain mm, UV, sunset | Reference only. Too dense to read on the panel |
 
-The shared header (`proverb`, `note`, `glance`, `rain`; `detailed` has its own, `at-a-glance` has none): date with the place beside it on the left; on the right, the **battery meter, always in the top-right corner of every dashboard** (glyph like the firmware calendar's + `~68%`, red with LOW below 30 %), above a small **"updated 9:04pm"** stamp in the smallest readable font (TRMNL12). The stamp is deliberately tiny so it isn't read as a live clock.
+The shared header (`weather-proverb`, `weather-haiku`, `weather-glance`, `weather-rain`; `weather-detailed` has its own, `dashboard-glance` has none): date with the place beside it on the left; on the right, the **battery meter, always in the top-right corner of every dashboard** (glyph like the firmware calendar's + `~68%`, red with LOW below 30 %), above a small **"updated 9:04pm"** stamp in the smallest readable font (TRMNL12). The stamp is deliberately tiny so it isn't read as a live clock.
 
 ### Why there's no live clock
 
@@ -77,7 +87,7 @@ So the dashboards show a small "last updated" stamp instead, kept fresh by the s
 
 All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (current, hourly, daily) + NEA (2-hour area nowcast, 24-h forecast, 4-day outlook, PSI for the nearest region).
 
-### Proverb of the day (`proverb` layout)
+### Proverb of the day (`weather-proverb` layout)
 
 [`data/proverbs.json`](data/proverbs.json) holds 366 entries, one per calendar day (`"01-01"` … `"12-31"`, including `"02-29"`):
 
@@ -89,21 +99,21 @@ All layouts share one data fetch (`screens/weather.py: fetch`): Open-Meteo (curr
 - Every entry was checked against the real 2/6 panel: it fits with its attribution (361 at 14 px, 5 at 12 px). To edit one, keep it short and run a preview for that date.
 - Origins follow the attributions common in proverb collections. Folk sayings rarely have a verifiable single source; famous-person quotes that are often misattributed were left out.
 
-### LLM haiku (`note` layout)
+### LLM haiku (`weather-haiku` layout)
 
 The side panel shows a haiku about today's forecast, written by a model on [OpenRouter](https://openrouter.ai/).
 
 1. `cp .env.example .env` (already done on the Mac mini) and paste your key: `OPENROUTER_API_KEY=sk-or-...`. `.env` is gitignored.
 2. `OPENROUTER_MODEL` defaults to `openrouter/free` ([Free Models Router](https://openrouter.ai/docs/guides/routing/routers/free-router): a random free model per request, rate limited).
-3. Preview: `uv run python -m epd.cli note --preview out.png` prints the haiku and which model wrote it.
+3. Preview: `uv run eink weather-haiku --preview out.png` prints the haiku and which model wrote it.
 
 How it works (`screens/quip.py`):
 - **Prompt facts:** now, condition and until-time, feels-like, rain window and 2-hourly chances, today/tomorrow (incl. NEA text and UV), PSI with an N95 note above 200. The model must weave the one practical thing (umbrella, mask, shade/water) into a quiet image: 5-7-5, no puns, no emoji.
-- **Validation:** exactly 3 lines, 8–22 words, and it must fit the panel at 14 px. Otherwise it retries once with feedback, then falls back to `[note]` in `config.toml`.
+- **Validation:** exactly 3 lines, 8–22 words, and it must fit the panel at 14 px. Otherwise it retries once with feedback, then falls back to `[weather-haiku]` in `config.toml`.
 - **Caching:** `.cache/quip.json`, regenerated only when the situation changes (condition, until-time, rain window, haze band, or a new 3-hour block). Delete the file to force a new haiku.
 - **Panel:** keeps the haiku's line breaks, indents wrapped continuations, and auto-fits (NicoClean 14 px, else TRMNL12 at 12 px).
 
-### macOS Calendar (`at-a-glance` layout)
+### macOS Calendar (`dashboard-glance` layout)
 
 [`epd/events.py`](epd/events.py) builds [`tools/calendar_export.swift`](tools/calendar_export.swift) (EventKit) into a tiny app bundle, `.cache/CalendarExport.app`, and starts it with `open`, so it is its own process for macOS privacy: one Calendars grant for **"nrf5-eink calendar export"** (System Settings → Privacy & Security → Calendars) works from a terminal and under launchd alike. A bare CLI would inherit the terminal's or bun's grant instead, and neither has Calendars.
 
@@ -126,10 +136,10 @@ The command centre (separate project, see below) drives this repo only through t
 
 | Action | Command (cwd = this repo) |
 | --- | --- |
-| Scheduled push | `uv run python -m epd.cli --push` (exit 0 = pushed; non-zero = failed; one summary line on stdout) |
-| Daily ghosting wipe | `uv run python -m epd.cli --push --wipe` |
-| List layouts / current | `uv run python -m epd.cli list` (`*` marks current) |
-| Change layout | `uv run python -m epd.cli use <name>` (next push), or `show <name>` to switch and push immediately |
+| Scheduled push | `uv run eink --push` (exit 0 = pushed; non-zero = failed; one summary line on stdout) |
+| Ghosting wipe (by hand) | `uv run eink --push --wipe` |
+| List layouts / current | `uv run eink list` (`*` marks current) |
+| Change layout | `uv run eink use <name>` (next push), or `show <name>` to switch and push immediately |
 
 ## Code
 
@@ -145,21 +155,23 @@ epd/
   events.py   macOS Calendar events (builds + runs the EventKit exporter app, caches, groups by day)
   data.py     cached JSON fetcher (data.gov.sg rate-limits hard; falls back to the last good copy)
   icons.py    weather glyphs drawn with PIL primitives (crisp at 1 bit), WMO + NEA text -> icon
-  cli.py      layouts registry, push/preview, `use`, `list`
+  cli.py      layouts registry, push/preview, `use`, `list`, `web`
+  web.py      local server for web/ (127.0.0.1 only, CSP) + layout render endpoint
+web/          local Web Bluetooth tool: epd.js (protocol, RLE, slots), image.js (dither, planes), app.js, help
 screens/
-  weather.py  data fetch + the `detailed` layout
+  weather.py  data fetch + the `weather-detailed` layout
   common.py   shared header, fonts, Forecast helper (rain windows, night), rain bars
-  glance.py   layout A
-  rain.py     layout B
-  note.py     side-panel dashboard (`layout()`), haiku variant at 3/6
-  proverb.py  proverb variant at 2/6, reads data/proverbs.json
-  at_a_glance.py  `at-a-glance`: date, weather + month | 7-day agenda
+  weather_glance.py   layout A
+  weather_rain.py     layout B
+  weather_haiku.py    side-panel dashboard (`layout()`), haiku variant at 3/6
+  weather_proverb.py  proverb variant at 2/6, reads data/proverbs.json
+  dashboard_glance.py `dashboard-glance`: date, weather + month | 7-day agenda
   quip.py     OpenRouter haiku: prompt, validation, cache
 tools/
   info.py, testcard.py
   calendar_export.swift (+ .plist)  EventKit exporter used by epd/events.py
   screenshots.py  regenerates docs/images/<layout>.png for this README
-  experiments/  red_card.py (B/W/R test card + refresh timing), raw_ssd1619_probe.py, gatt_dump.py,
+  experiments/  red_card.py (B/W/R test card + refresh timing), raw_ssd1619_probe.py, gatt_dump.py, slot_test.py,
                 and the early red probes from before the refresh-timing fix
 docs/DEVICE.md  everything known about the device
 ```
@@ -170,12 +182,13 @@ Pushes are scheduled by **homelab-hq** (`~/Developer/potateros/homelab-hq`), the
 
 | Job | Command (cwd = this repo) | When |
 | --- | --- | --- |
-| `eink-weather` | `uv run python -m epd.cli --push` | every 30 min, skipped 23:00–07:00, 5 min timeout |
-| `eink-wipe` | `uv run python -m epd.cli --push --wipe` | 00:01 daily (clears ghosting; one minute after the firmware's midnight redraw so they don't collide) |
+| `eink-tool` | `uv run eink web --background` | on demand (`manual = true`): **R** in the hq TUI opens the [local web tool](#local-web-tool-eink-web) |
+| `eink-dashboard-1` | `uv run eink --push` | every 30 min, skipped 23:00–07:00, 5 min timeout |
+| `eink-dashboard-1-midnight` | `uv run eink --push` | 00:01 daily: replaces the firmware's midnight calendar redraw (the dead-man fallback) with the dashboard for the night. It used to also wipe (`--wipe`); dropped 2026-10-17, since every push is a full refresh and no ghosting was seen |
 
-- The jobs push **whatever `config.toml` says**. `epd.cli use <name>` changes what the next scheduled push shows; with `auto`, each push re-decides between `rain` and `proverb`.
-- `hq status` shows last and next runs, `hq logs eink-weather` shows push output (`pushed proverb (battery … mV …)`), and `hq run eink-weather --manual` pushes now.
-- **One Bluetooth connection at a time:** a manual push or experiment while a scheduled push is running will make one of them fail. For longer manual sessions, use `hq hold eink-weather` first and `hq resume eink-weather` after.
+- The jobs push **whatever `config.toml` says**. `epd.cli use <name>` changes what the next scheduled push shows; with `auto`, each push re-decides between `weather-rain` and `weather-proverb`.
+- `hq status` shows last and next runs, `hq logs eink-dashboard-1` shows push output (`pushed dashboard-glance (battery … mV …)`), and `hq run eink-dashboard-1 --manual` pushes now.
+- **One Bluetooth connection at a time:** a manual push or experiment while a scheduled push is running will make one of them fail. For longer manual sessions, use `hq hold eink-dashboard-1` first and `hq resume eink-dashboard-1` after.
 - **Bluetooth permission:** under launchd, macOS asks on behalf of `bun` (hq's runner), not your terminal. If pushes fail with `Bluetooth access is denied by the user`, allow `~/.bun/bin/bun` in System Settings → Privacy & Security → Bluetooth. Upgrading bun may need the grant again. It's granted on this Mac as of 2026-10-16.
 - **Failed pushes** (device out of range, asleep between adverts, another app connected, link dropped) are retried once if nothing reached the panel yet (scan/connect), then the run exits 1 with a one-line reason, e.g. `push failed: device not found (…): out of range, between adverts, or another app is connected`, so hq shows FAULT. Every attempt is logged to `.cache/push.log` (CSV: time, layout, ok/fail, stage reached, RSSI dBm, attempt, seconds, reason), and successful pushes print the signal strength (`signal -81 dBm`; "weak" below -85). If failures pile up, compare their RSSI with the good ones to see whether it's distance.
 - The Mac must stay awake (display sleep is fine). If pushes stop, the midnight calendar fallback takes over.
@@ -205,20 +218,20 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 
 ## Design decisions (from the owner)
 
-- **Readable from across the desk beats complete.** The dense layout was too hard to read; `glance` keeps body text ≥ 16 px and labels ≥ 12 px, and drops UV, sunset, wind, rain mm.
-- **Fonts: the TRMNL type system** ([fonts/](fonts/README.md), SIL OFL, from the [TRMNL framework](https://github.com/usetrmnl/trmnl-framework)). TRMNL12/16/21 Bold are pixel fonts drawn for 1-bit screens and used at their native sizes only; `bold(size)` snaps to 12/16/21, and from 26 px up it uses Inter Bold. History: Helvetica broke up without anti-aliasing, Menlo was rejected as monospace, Verdana looked too wide and heavy, so we matched what [TRMNL uses on 1-bit screens](https://trmnl.com/framework/docs/3.4/font_family). Weights: **bold** only for numbers, the date and the condition; **medium** (`medium(size)`) for body text and labels: **NicoClean**, TRMNL's classic body pixel font, evenly weighted and between TRMNL Regular (too thin) and Bold (too heavy); clean at 14–16 px, with TRMNL12 Bold for 12 px labels. Rejected along the way: a 1-px double-strike "medium" (uneven: thick verticals, thin curves) and Monaspace Argon (outline font, so strokes snap unevenly at 1 bit). Rendered with anti-aliasing off. The `detailed` layout still uses Helvetica Bold + Menlo.
-- The condition in `glance` wraps onto two lines at 21 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
+- **Readable from across the desk beats complete.** The dense layout was too hard to read; `weather-glance` keeps body text ≥ 16 px and labels ≥ 12 px, and drops UV, sunset, wind, rain mm.
+- **Fonts: the TRMNL type system** ([fonts/](fonts/README.md), SIL OFL, from the [TRMNL framework](https://github.com/usetrmnl/trmnl-framework)). TRMNL12/16/21 Bold are pixel fonts drawn for 1-bit screens and used at their native sizes only; `bold(size)` snaps to 12/16/21, and from 26 px up it uses Inter Bold. History: Helvetica broke up without anti-aliasing, Menlo was rejected as monospace, Verdana looked too wide and heavy, so we matched what [TRMNL uses on 1-bit screens](https://trmnl.com/framework/docs/3.4/font_family). Weights: **bold** only for numbers, the date and the condition; **medium** (`medium(size)`) for body text and labels: **NicoClean**, TRMNL's classic body pixel font, evenly weighted and between TRMNL Regular (too thin) and Bold (too heavy); clean at 14–16 px, with TRMNL12 Bold for 12 px labels. Rejected along the way: a 1-px double-strike "medium" (uneven: thick verticals, thin curves) and Monaspace Argon (outline font, so strokes snap unevenly at 1 bit). Rendered with anti-aliasing off. The `weather-detailed` layout still uses Helvetica Bold + Menlo.
+- The condition in `weather-glance` wraps onto two lines at 21 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
 - **Alignment is computed, not eyeballed:** `text_mid` centres text on its cap height, `text_top` puts the cap top on a line, `icon_mid` centres icon boxes. Rows share a centre line, and the header shares a baseline.
-- Hourly slots sit on even hours (10am, 12pm, 2pm…), and the rain chart labels 12am/6am/12pm/6pm (owner, 2026-10-17). `glance` keeps 3 h steps, so it starts on the next hour.
-- Weather first. Air quality appears whenever PSI is above "Good" (> 50), in red once "Unhealthy" (> 100); it used to be > 100 only, lowered so the owner can track the October 2026 haze (owner, 2026-10-17). The battery meter is always shown, top right (owner, 2026-10-16). Exception: `at-a-glance` has no header, so its meter sits bottom-left, the emptiest corner (owner, 2026-10-17).
-- `at-a-glance` (owner, 2026-10-17): a 140 | 260 split (the 300 | 500 idea scaled to 400 px, then narrowed from 150 so titles fit; 130 cramped the month grid); an agenda, not a schedule (no time grid, empty days skipped); 24 h times; Sundays red rather than shaded (the panel has no grey, and a dot pattern broke up the digits); red also marks today and holidays, a deliberate step beyond red-as-signal for this layout; only accepted invites.
+- Hourly slots sit on even hours (10am, 12pm, 2pm…), and the rain chart labels 12am/6am/12pm/6pm (owner, 2026-10-17). `weather-glance` keeps 3 h steps, so it starts on the next hour.
+- Weather first. Air quality appears whenever PSI is above "Good" (> 50), in red once "Unhealthy" (> 100); it used to be > 100 only, lowered so the owner can track the October 2026 haze (owner, 2026-10-17). The battery meter is always shown, top right (owner, 2026-10-16). Exception: `dashboard-glance` has no header, so its meter sits bottom-left, the emptiest corner (owner, 2026-10-17).
+- `dashboard-glance` (owner, 2026-10-17): a 140 | 260 split (the 300 | 500 idea scaled to 400 px, then narrowed from 150 so titles fit; 130 cramped the month grid); an agenda, not a schedule (no time grid, empty days skipped); 24 h times; Sundays red rather than shaded (the panel has no grey, and a dot pattern broke up the digits); red also marks today and holidays, a deliberate step beyond red-as-signal for this layout; only accepted invites.
 - Header is black on white with a rule underneath (white-on-black was hard to read). The update time is a small two-line "last updated" stamp, not a clock.
 - Divider lines are 1 px.
-- **Red is a signal colour** (since 2026-10-16): only for what you might act on. Wet hours (≥ 50 % chance) in rain bars, sparklines and the `rain` chart; the Today/Tmrw rain % while wet hours are still ahead; the haze line / PSI; the `rain` headline when rain is coming; the battery meter when LOW. Everything else stays black. Drawn with `screens.common.RED` and pushed as a separate red plane.
+- **Red is a signal colour** (since 2026-10-16): only for what you might act on. Wet hours (≥ 50 % chance) in rain bars, sparklines and the `weather-rain` chart; the Today/Tmrw rain % while wet hours are still ahead; the haze line / PSI; the `weather-rain` headline when rain is coming; the battery meter when LOW. Everything else stays black. Drawn with `screens.common.RED` and pushed as a separate red plane.
 - Battery is an **estimated percentage** using the firmware's own curve (upstream `batt_cal`), so it matches the calendar's glyph. The firmware measures the ~3.0 V rail (≈2.91 V ≈ ~68 %), not the 1100 mAh cell, so the number sits flat for most of the cell's life and drops near the end: charge when it turns red (< 30 %). Readings are logged to `.cache/battery.csv` for a future days-left estimate.
-- **Today/Tmrw rain sparkline** (`common.day_row`, shared by `glance`, `note`, `proverb`): 24 bars, one per hour, for that day's chance of rain, filling the gap between high/low and rain %. Today's past hours shrink to dots on the baseline, so the bars show what's still ahead. Chosen over a text rain window, UV, condition word, rain mm, sun times and feels-like.
-- In `glance`, the big temperature is vertically centred on the weather icon; the condition column is top-aligned beside it.
-- Pushes skip the full clear (40 s instead of 70 s). A wipe once a day handles ghosting.
+- **Today/Tmrw rain sparkline** (`common.day_row`, shared by `weather-glance`, `weather-haiku`, `weather-proverb`): 24 bars, one per hour, for that day's chance of rain, filling the gap between high/low and rain %. Today's past hours shrink to dots on the baseline, so the bars show what's still ahead. Chosen over a text rain window, UV, condition word, rain mm, sun times and feels-like.
+- In `weather-glance`, the big temperature is vertically centred on the weather icon; the condition column is top-aligned beside it.
+- Pushes skip the full clear (40 s instead of 70 s). No scheduled wipe since 2026-10-17: run `--wipe` by hand if ghosting ever shows.
 
 ## Panel constraints
 
@@ -228,14 +241,14 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 
 ## Ideas / backlog
 
-- [x] Schedule: push every 30 min 07:00–23:00 and a 00:01 wipe, via [homelab-hq](#scheduling-homelab-hq)
+- [x] Schedule: push every 30 min 07:00–23:00 and a 00:01 re-push, via [homelab-hq](#scheduling-homelab-hq)
 - [ ] Switch layouts from the hq TUI (per-job action calling `epd.cli use <name>`)
 - [ ] Time-aware layout (C): after ~6 pm put tomorrow in focus
 - [x] Retest red uploads: red works (2026-10-16). Next: use it in layouts (rain bars, haze alert)
-- [x] Agenda from macOS Calendar + dated reminders: `at-a-glance` (2026-10-17)
+- [x] Agenda from macOS Calendar + dated reminders: `dashboard-glance` (2026-10-17)
 - [ ] Promote a WIP mockup ([wip/](wip/README.md)): two-column agenda (c2), reminders (r1), or go portrait (p1-p4)
-- [ ] Haze alert screen: full-screen warning if PSI > 300
 - [ ] Clock options (see "Why there's no live clock"): firmware clock mode at night only, or partial refresh if custom firmware ever becomes safe to flash
 - [ ] Fun slots: bus/MRT arrivals (LTA DataMall key), dithered photo, xkcd, GitHub contributions, quote of the day, a Claude-written daily summary
-- [ ] Investigate the firmware's 15 image "slots": could the device rotate stored images on its own?
+- [x] Firmware image slots: `0x31` store/show, `0x32` delete, `0x33` carousel every N min, verified 2026-10-17 (docs/DEVICE.md §2.0b–c)
+- [ ] Decide on slot wear: every push rewrites the current slot (byte 13); rotate it if that matters
 - [ ] Measure clock drift over a day (log `t=` vs host time)
