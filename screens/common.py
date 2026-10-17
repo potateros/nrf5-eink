@@ -52,7 +52,9 @@ def regular(size: int) -> ImageFont.FreeTypeFont:
         font.set_variation_by_name("Regular")
         return font
     if size in (14, 15):
-        return ImageFont.truetype(str(FONTS / "TRMNL16-Regular.ttf"), 14)
+        font = ImageFont.truetype(str(FONTS / "TRMNL16-Regular.ttf"), 14)
+        font.off_native = True
+        return font
     native = 12 if size <= 13 else 16 if size <= 18 else 21
     return ImageFont.truetype(str(FONTS / f"TRMNL{native}-Regular.ttf"), native)
 
@@ -64,11 +66,39 @@ def medium(size: int) -> ImageFont.FreeTypeFont:
     at <= 13 it gets cramped, so small labels use TRMNL12 Bold, which is equally even."""
     if size <= 13:
         return ImageFont.truetype(str(FONTS / "TRMNL12-Bold.ttf"), 12)
-    return ImageFont.truetype(str(FONTS / "NicoClean-Regular.ttf"), 16 if size >= 16 else size)
+    font = ImageFont.truetype(str(FONTS / "NicoClean-Regular.ttf"), 16 if size >= 16 else size)
+    font.off_native = size < 16
+    return font
+
+
+@lru_cache(maxsize=None)
+def _dot(font) -> tuple[int, int]:
+    """(left offset, width) of the ink in a "." glyph, measured by rendering it."""
+    im = Image.new("1", (40, 40), 0)
+    ImageDraw.Draw(im).text((10, 10), ".", font=font, fill=1)
+    x0, _, x1, _ = im.getbbox()
+    return x0 - 10, x1 - x0
 
 
 def draw_text(d: ImageDraw.ImageDraw, xy: tuple[float, float], text: str, font, anchor: str = "la", fill="black"):
-    d.text(xy, text, font=font, fill=fill, anchor=anchor)
+    """d.text, except that "…" is drawn as three tight periods in fonts used off their native pixel
+    size (NicoClean/TRMNL16 at 14 px), where the real glyph smears into an underscore. The dots take
+    the glyph's own advance, so measuring with "…" (e.g. in _fit) stays exact."""
+    if "…" not in text or not getattr(font, "off_native", False):
+        d.text(xy, text, font=font, fill=fill, anchor=anchor)
+        return
+    x = xy[0] - {"l": 0, "m": 0.5, "r": 1}[anchor[0]] * d.textlength(text, font=font)
+    a = "l" + anchor[1]
+    off, w = _dot(font)
+    adv = font.getlength("…")
+    step = max(w + 1, (adv - w) / 2.5)  # spread evenly inside the advance, at least 1 px apart
+    for k, part in enumerate(text.split("…")):
+        if k:
+            for n in range(3):
+                d.text((round(x + n * step) - off + 1, xy[1]), ".", font=font, fill=fill, anchor=a)
+            x += adv
+        d.text((x, xy[1]), part, font=font, fill=fill, anchor=a)
+        x += d.textlength(part, font=font)
 
 
 def _cap(font: ImageFont.FreeTypeFont) -> tuple[int, int]:

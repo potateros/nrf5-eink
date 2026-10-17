@@ -82,13 +82,13 @@ def _left(img, d, fc: Forecast, today: dt.date, holidays: set[int], battery_mv: 
 
 
 def _fit(d, text: str, font, width: float) -> str:
-    """One line, cut by character (not word) so long titles use the full width. The pixel fonts
-    have no "…" glyph, so the cut is marked with three dots."""
+    """One line, cut by character (not word) so long titles use the full width, ending in "…"
+    (common.draw_text keeps it crisp at off-native sizes)."""
     if d.textlength(text, font=font) <= width:
         return text
-    while text and d.textlength(text.rstrip(" ,/-:") + "...", font=font) > width:
+    while text and d.textlength(text.rstrip(" ,/-:") + "…", font=font) > width:
         text = text[:-1]
-    return text.rstrip(" ,/-:") + "..."
+    return text.rstrip(" ,/-:") + "…"
 
 
 def _when(e: dict) -> str:

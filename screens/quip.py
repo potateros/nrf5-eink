@@ -68,7 +68,7 @@ def signature(fc: Forecast) -> str:
 
 def clean(text: str) -> str:
     """Normalise to characters the pixel fonts have; drop wrapping quotes."""
-    for a, b in {"‘": "'", "’": "'", "“": '"', "”": '"', "…": "...",
+    for a, b in {"‘": "'", "’": "'", "“": '"', "”": '"',
                  "–": "-", "—": " - ", " ": " "}.items():
         text = text.replace(a, b)
     lines = []
