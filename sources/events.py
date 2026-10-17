@@ -1,4 +1,4 @@
-"""Upcoming events from macOS Calendar, via the EventKit exporter in tools/calendar_export.swift.
+"""Upcoming events from macOS Calendar, via the EventKit exporter in calendar_export.swift (next to this file).
 
 Calendar access (TCC) belongs to the process macOS holds responsible. A bare CLI inherits the
 terminal's or launchd's (bun's) grant, and neither has Calendars, nor can launchd show the prompt.
@@ -19,11 +19,13 @@ import os
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-SRC, PLIST = ROOT / "tools" / "calendar_export.swift", ROOT / "tools" / "calendar_export.plist"
-APP = ROOT / ".cache" / "CalendarExport.app"
+from eink import paths
+
+HERE = Path(__file__).resolve().parent
+SRC, PLIST = HERE / "calendar_export.swift", HERE / "calendar_export.plist"
+APP = paths.CACHE / "CalendarExport.app"
 EXE = APP / "Contents" / "MacOS" / "calendar-export"
-CACHE = ROOT / ".cache" / "events.json"
+CACHE = paths.CACHE / "events.json"
 SHOWN_STATUSES = {"none", "accepted"}  # "none" = not an invite (your own event)
 
 

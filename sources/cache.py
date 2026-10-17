@@ -3,9 +3,8 @@ import hashlib
 import json
 import time
 import urllib.request
-from pathlib import Path
 
-CACHE = Path(__file__).resolve().parent.parent / ".cache"
+from eink.paths import CACHE
 
 
 def fetch_json(url: str, ttl: int = 600) -> dict:

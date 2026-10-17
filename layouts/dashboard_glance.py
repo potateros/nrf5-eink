@@ -1,5 +1,5 @@
 """Layout "dashboard-glance": a 140 px left column (today's date, today's weather, the month) and a 260 px
-agenda of the coming days from macOS Calendar (epd/events.py).
+agenda of the coming days from macOS Calendar (sources/events.py).
 
 The split started as the owner's 300 | 500 idea scaled to 400 px (150 | 250), then narrowed to 140
 so agenda titles fit (130 crams the month grid). There's no shared header:
@@ -15,9 +15,10 @@ import datetime as dt
 
 from PIL import Image, ImageDraw
 
-from epd import events, icons
-from screens import weather
-from screens.common import (H, RED, W, Forecast, battery_meter, bold, draw_text, icon_mid, medium, rain_ink,
+from layouts import icons
+from sources import events
+from sources import weather
+from layouts.common import (H, RED, W, Forecast, battery_meter, bold, draw_text, icon_mid, medium, rain_ink,
                             text_mid, text_top)
 
 SPLIT = 140     # left column | agenda
@@ -29,7 +30,7 @@ BULLET_W = 12   # reminder circle sits this far left of the title, in the time c
 
 
 def _config() -> dict:
-    from epd.cli import load_config  # lazy: cli imports layouts lazily too
+    from eink.cli import load_config  # lazy: cli imports layouts lazily too
     return load_config().get("calendar", {})
 
 

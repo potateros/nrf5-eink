@@ -3,9 +3,9 @@ import datetime as dt
 
 from PIL import Image
 
-from epd import icons
-from screens.common import HAZE_PSI, RED, Forecast, bold, canvas, day_row, haze_ink, hour, icon_mid, medium, rain_bar, text_mid, text_top, wrap
-from screens.weather import fetch  # noqa: F401  (same data as the detailed screen)
+from layouts import icons
+from layouts.common import HAZE_PSI, Forecast, bold, canvas, day_row, haze_ink, hour, icon_mid, medium, rain_bar, text_mid, text_top, wrap
+from sources.weather import fetch  # noqa: F401  (same data as the detailed screen)
 
 
 def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = None) -> Image.Image:

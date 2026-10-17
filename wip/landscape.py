@@ -14,12 +14,12 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from epd import events
-from epd.cli import last_battery, load_config
+from sources import events
+from eink.cli import last_battery, load_config
 from epd.image import preview
-from screens import weather
-from screens.at_a_glance import HOLIDAYS, _fit, _when
-from screens.common import H, RED, W, Forecast, bold, canvas, medium, text_mid, text_top, wrap
+from sources import weather
+from layouts.dashboard_glance import HOLIDAYS, _fit, _when
+from layouts.common import H, RED, W, Forecast, bold, canvas, medium, text_mid, text_top, wrap
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "wip" / "images"
 cfg = load_config(); conf = cfg.get("calendar", {})

@@ -1,12 +1,12 @@
 // Dump the next few days of macOS Calendar events as JSON, for the "calendar" layout.
 //
-// Built and run by epd/events.py (swiftc -O -o .cache/calendar-export tools/calendar_export.swift).
+// Built and run by sources/events.py (swiftc -O into .cache/CalendarExport.app).
 // EventKit reads the Calendar store directly, so it's fast and needs no Calendar.app.
 //
 //   .cache/calendar-export [days]     # default 7, starting at today's midnight
 //
 // Permission: the first run asks for Calendar access, and the grant belongs to whatever
-// launched it (the terminal, or /usr/bin/osascript under launchd; see epd/events.py).
+// launched it (the terminal, or /usr/bin/osascript under launchd; see sources/events.py).
 // Exit 2 = access denied.
 
 import EventKit

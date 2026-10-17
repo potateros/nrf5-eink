@@ -26,7 +26,7 @@ def marker(slot: int):
     """Full-frame marker: text and a red bar near the bottom edge make truncation obvious."""
     from PIL import Image, ImageDraw
     from epd.image import to_planes
-    from screens.common import RED, bold
+    from layouts.common import RED, bold
     img = Image.new("RGB", (400, 300), "white")
     d = ImageDraw.Draw(img)
     d.rectangle((0, 0, 399, 299), outline="black", width=3)

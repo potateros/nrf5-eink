@@ -84,7 +84,7 @@ export function rleDecompress(data) {
   return Uint8Array.from(out);
 }
 
-// --- battery, same curve as the firmware's calendar glyph (screens.weather.battery_pct) -----
+// --- battery, same curve as the firmware's calendar glyph (epd/battery.py battery_pct) -----
 
 export function batteryPct(mv) {
   const adc = Math.floor((mv * 2047) / 3600);

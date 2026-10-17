@@ -4,16 +4,17 @@
 Grid: the hourly strip is 6 columns of 400/6 px. The main block spans `main_cols` of them and the
 side panel the rest, so the panel divider always lines up with an hourly column divider (2.5/6 was
 tried and breaks the grid). Hourly slots keep glance's slot proportions (100x112 -> 67x75).
-`layout()` is shared with screens/proverb.py, which uses a 2/6 panel; the haiku uses 3/6.
+`layout()` is shared with layouts/weather_proverb.py, which uses a 2/6 panel; the haiku uses 3/6.
 """
 import datetime as dt
 
 from PIL import Image
 
-from epd import icons
-from screens.common import (HAZE_PSI, RED, Forecast, bold, haze_ink, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid,
+from layouts import icons
+from layouts.common import (HAZE_PSI, Forecast, bold, haze_ink, canvas, day_row, hour, icon_mid, medium, rain_bar, text_mid,
                             text_top, wrap, wrap_lines)
-from screens import quip, weather
+from layouts import quip
+from sources import weather
 
 COLS = 6
 COL_W = 400 / COLS
@@ -43,7 +44,7 @@ def note_text(data: dict) -> tuple[str, str | None]:
     """The LLM quip if there is one, else the fallback quote in config.toml [weather-haiku]."""
     if data.get("quip"):
         return data["quip"], None
-    from epd.cli import load_config  # lazy: cli imports layouts lazily too
+    from eink.cli import load_config  # lazy: cli imports layouts lazily too
     note = load_config().get("weather-haiku", {})
     return note.get("text", ""), note.get("by")
 

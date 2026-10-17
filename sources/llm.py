@@ -2,9 +2,8 @@
 import json
 import os
 import urllib.request
-from pathlib import Path
 
-ENV = Path(__file__).resolve().parent.parent / ".env"
+from eink.paths import ENV
 URL = "https://openrouter.ai/api/v1/chat/completions"
 
 

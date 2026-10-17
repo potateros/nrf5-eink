@@ -1,81 +1,16 @@
-"""Today + tomorrow weather screen for Singapore (Open-Meteo + NEA)."""
+"""weather-detailed: the original dense today + tomorrow screen (Open-Meteo + NEA)."""
 import datetime as dt
-import math
 
 from PIL import Image, ImageDraw, ImageFont
 
-from epd import icons
-from epd.data import fetch_json
+from epd.battery import battery_level
+from layouts import icons
+from layouts.common import battery_meter, medium
+from sources.weather import fetch, psi_band  # noqa: F401  (fetch: the layout contract)
 
-NEA = "https://api-open.data.gov.sg/v2/real-time/api/"
 FONT = "/System/Library/Fonts/Helvetica.ttc"        # bold: headings and big numbers
 BODY_FONT = "/System/Library/Fonts/Menlo.ttc"      # regular small text: crisp without anti-aliasing
 COMPASS = "N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split()
-
-
-def psi_band(v: int) -> str:
-    return ("Good", "Moderate", "Unhealthy", "Very unhealthy", "Hazardous")[
-        (v > 50) + (v > 100) + (v > 200) + (v > 300)]
-
-
-LOW_PCT = 30  # below the knee of the firmware curve: charge soon
-
-
-def battery_pct(mv: int) -> int:
-    """Estimated charge %, using the firmware's own curve (upstream GUI.c `batt_cal`), so the
-    dashboards agree with the battery glyph on its built-in calendar. It's an estimate: `bat=` is
-    the ~3.0 V rail, which stays flat for most of the cell's life (2.91-2.93 V, i.e. ~65-75 %
-    here) and only drops near the end. A falling number means charge soon."""
-    adc = mv * 2047 // 3600
-    for hi, lo, top, span in ((1705, 1584, 28, 72), (1584, 1360, 4, 24), (1360, 1136, 0, 4)):
-        if adc > hi:
-            return 100 if hi == 1705 else top + span
-        if adc > lo:
-            return top + (adc - lo) * span // (hi - lo)
-    return 0
-
-
-def battery_level(mv: int) -> tuple[float, str]:
-    """(fill 0..1, label) for a battery glyph: label is "~69%", or "~25% LOW" below LOW_PCT."""
-    pct = battery_pct(mv)
-    return pct / 100, f"~{pct}%" + (" LOW" if pct < LOW_PCT else "")
-
-
-def fetch(lat: float, lon: float) -> dict:
-    om = fetch_json(
-        "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}&longitude={lon}&timezone=Asia/Singapore&forecast_days=3"
-        "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m"
-        "&hourly=temperature_2m,precipitation_probability,weather_code"
-        "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
-        "precipitation_sum,uv_index_max,sunrise,sunset,wind_speed_10m_max,apparent_temperature_max",
-        ttl=900)
-    out = {"om": om}
-    # NEA extras are nice-to-have; screen still renders without them.
-    try:
-        two = fetch_json(NEA + "two-hr-forecast")["data"]
-        meta = min(two["area_metadata"], key=lambda a: (a["label_location"]["latitude"] - lat) ** 2
-                   + (a["label_location"]["longitude"] - lon) ** 2)
-        item = two["items"][0]
-        out["nowcast"] = (meta["name"], next(f["forecast"] for f in item["forecasts"] if f["area"] == meta["name"]),
-                          item["valid_period"]["text"])
-    except Exception:
-        pass
-    try:
-        out["today_text"] = fetch_json(NEA + "twenty-four-hr-forecast")["data"]["records"][0]["general"]["forecast"]["text"]
-        out["outlook"] = fetch_json(NEA + "four-day-outlook", ttl=3600)["data"]["records"][0]["forecasts"]
-    except Exception:
-        pass
-    try:
-        psi = fetch_json(NEA + "psi")["data"]
-        r = psi["items"][0]["readings"]
-        region = min(psi["regionMetadata"], key=lambda m: (m["labelLocation"]["latitude"] - lat) ** 2
-                     + (m["labelLocation"]["longitude"] - lon) ** 2)["name"]
-        out["air"] = (r["psi_twenty_four_hourly"][region],
-                      fetch_json(NEA + "pm25")["data"]["items"][0]["readings"]["pm25_one_hourly"][region])
-    except Exception:
-        pass
-    return out
 
 
 def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = None,
@@ -106,7 +41,6 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
     hb = S(24)
     d.line((0, hb, w, hb), fill="black", width=1)
     d.text((S(8), hb // 2), now.strftime("%A %-d %B"), font=F(17, True), fill="black", anchor="lm")
-    from screens.common import battery_meter, medium  # lazy: common imports this module
     battery_meter(d, w - S(8), hb // 2 - 5, battery_mv)  # same top-right meter as every dashboard
     label = battery_level(battery_mv)[1] if battery_mv else "?"
     right = w - S(8) - 26 - d.textlength(label, font=medium(12)) - S(12)

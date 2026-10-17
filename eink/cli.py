@@ -1,11 +1,11 @@
-"""nrf5-eink CLI: render a screen to PNG and/or push it to the display.
+"""nrf5-eink CLI (`eink`): render a layout to PNG and/or push it to the display.
 
-  uv run python -m epd.cli --push                      # push the screen set in config.toml
-  uv run python -m epd.cli rain --preview out.png      # render a specific screen
-  uv run python -m epd.cli use rain                    # switch the default screen
-  uv run python -m epd.cli show rain                   # switch the default screen and push it now
-  uv run python -m epd.cli list                        # available screens (* = current)
-  uv run eink web                                      # local Web Bluetooth tool (--background: detached)
+  uv run eink --push                                # push the layout set in config.toml
+  uv run eink weather-rain --preview out.png        # render a specific layout
+  uv run eink use weather-rain                      # switch the default layout
+  uv run eink show weather-rain                     # switch the default layout and push it now
+  uv run eink list                                  # available layouts (* = current)
+  uv run eink web                                   # local Web Bluetooth tool (--background: detached)
 """
 import argparse
 import csv
@@ -16,25 +16,24 @@ import re
 import sys
 import time
 import tomllib
-from pathlib import Path
 
 from PIL import Image
 
-from .image import preview, to_planes
+from epd.image import preview, to_planes
 
-CONFIG = Path(__file__).resolve().parent.parent / "config.toml"
+from .paths import CACHE, CONFIG
+
 
 # name -> (module, description). Each module has fetch(lat, lon) and render(data, ..., battery_mv=).
 SCREENS = {
-    "weather-glance": ("screens.weather_glance", "big now, next 12 h in 4 slots, today/tomorrow lines"),
-    "weather-rain": ("screens.weather_rain", "rain headline + 24 h chance-of-rain chart"),
-    "weather-haiku": ("screens.weather_haiku", "3/6 now block + 3/6 LLM weather haiku panel, 6 x 2-hourly slots"),
-    "weather-proverb": ("screens.weather_proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
-    "dashboard-glance": ("screens.dashboard_glance", "date, weather + month | 7-day agenda from macOS Calendar"),
-    "weather-detailed": ("screens.weather", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
-    "auto": ("screens.auto", "weather-rain when heavy rain is coming (any rain before noon), else weather-proverb"),
+    "weather-glance": ("layouts.weather_glance", "big now, next 12 h in 4 slots, today/tomorrow lines"),
+    "weather-rain": ("layouts.weather_rain", "rain headline + 24 h chance-of-rain chart"),
+    "weather-haiku": ("layouts.weather_haiku", "3/6 now block + 3/6 LLM weather haiku panel, 6 x 2-hourly slots"),
+    "weather-proverb": ("layouts.weather_proverb", "4/6 now block + 2/6 proverb of the day, 6 x 2-hourly slots"),
+    "dashboard-glance": ("layouts.dashboard_glance", "date, weather + month | 7-day agenda from macOS Calendar"),
+    "weather-detailed": ("layouts.weather_detailed", "dense: hourly x8, today/tomorrow cards, UV, sunset"),
+    "auto": ("layouts.auto", "weather-rain when heavy rain is coming (any rain before noon), else weather-proverb"),
 }
-ALIASES: dict[str, str] = {}
 
 
 def load_config() -> dict:
@@ -48,13 +47,13 @@ def set_screen(name: str):
 
 
 def resolve(name: str | None, cfg: dict) -> str:
-    name = ALIASES.get(name, name) or cfg["screen"]
+    name = name or cfg["screen"]
     if name not in SCREENS:
         raise SystemExit(f"unknown screen {name!r}; choose from {', '.join(SCREENS)}")
     return name
 
 
-BATTERY_LOG = Path(__file__).resolve().parent.parent / ".cache" / "battery.csv"
+BATTERY_LOG = CACHE / "battery.csv"
 
 
 def log_battery(mv: int):
@@ -96,7 +95,7 @@ def log_push(name: str, outcome: str, e, attempt: int, secs: float, detail: str 
 def explain(exc: BaseException, stage: str) -> str:
     """A one-line reason for the hq dashboard (its last log line)."""
     from bleak.exc import BleakBluetoothNotAvailableError
-    from .device import DeviceNotFound
+    from epd.device import DeviceNotFound
     if isinstance(exc, BleakBluetoothNotAvailableError):
         return f"Bluetooth unavailable on this Mac ({exc.args[0] if exc.args else exc}); under launchd, check bun's Bluetooth permission"
     if isinstance(exc, DeviceNotFound):
@@ -110,7 +109,7 @@ def run_push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
     """push() with failure handling: log every attempt, retry once if it failed before anything
     reached the panel, and exit 1 with a readable reason so hq marks the run FAULT."""
     from bleak.exc import BleakBluetoothNotAvailableError
-    from .device import EPD
+    from epd.device import EPD
     for attempt in (1, 2):
         e, t0 = EPD(), time.monotonic()
         try:
@@ -130,7 +129,7 @@ def run_push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
 
 async def push(name: str, cfg: dict, wipe: bool, e) -> Image.Image | None:
     """Connect first so the frame can show the battery level the device just reported."""
-    from .device import MODE_CALENDAR, WIPE_SECONDS
+    from epd.device import MODE_CALENDAR, WIPE_SECONDS
     async with e:
         mv = int(e.info["bat"]) if "bat" in e.info else None
         if mv:
@@ -179,7 +178,7 @@ def main():
                 run_push(name, cfg | {"screen": name}, wipe=False)
         else:
             for name, (_, desc) in SCREENS.items():
-                print(f"{'*' if name == cfg['screen'] else ' '} {name:11} {desc}")
+                print(f"{'*' if name == cfg['screen'] else ' '} {name:17} {desc}")
         return
 
     ap = argparse.ArgumentParser()

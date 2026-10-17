@@ -1,6 +1,6 @@
 # WIP layouts (2026-10-17)
 
-Mockups only: not registered in `epd.cli`, never pushed. They reuse the live data and helpers (`epd.events`, `screens.at_a_glance`, `screens.common`), so they render today's real calendar, reminders and weather.
+Mockups only: not registered in `eink.cli`, never pushed. They reuse the live data and helpers (`sources.events`, `layouts.dashboard_glance`, `layouts.common`), so they render today's real calendar, reminders and weather.
 
 ```sh
 uv run python wip/landscape.py   # c1-c3, r1-r2 -> wip/images/

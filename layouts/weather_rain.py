@@ -3,9 +3,9 @@ import datetime as dt
 
 from PIL import Image
 
-from epd import icons
-from screens.common import HAZE_PSI, RED, Forecast, haze_ink, bold, canvas, hour, icon_mid, medium, rain_ink, text_mid, text_top
-from screens.weather import fetch  # noqa: F401
+from layouts import icons
+from layouts.common import HAZE_PSI, RED, Forecast, haze_ink, bold, canvas, hour, icon_mid, medium, rain_ink, text_mid, text_top
+from sources.weather import fetch  # noqa: F401
 
 
 def headline(fc: Forecast) -> str:

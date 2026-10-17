@@ -1,4 +1,4 @@
-"""LLM-written weather haiku for the "weather-haiku" layout's side panel (OpenRouter, see epd/llm.py).
+"""LLM-written weather haiku for the "weather-haiku" layout's side panel (OpenRouter, see sources/llm.py).
 
 Cached in .cache/quip.json and regenerated only when the weather situation changes (condition,
 until-time, rain window, haze band, or a new 3-hour block), so 30-minute pushes don't call the
@@ -8,15 +8,15 @@ import datetime as dt
 import json
 import re
 import time
-from pathlib import Path
 
-from epd import llm
+from eink import paths
+from sources import llm
 from PIL import Image, ImageDraw
 
-from screens.common import Forecast, hour, medium, wrap_lines
-from screens.weather import psi_band
+from layouts.common import Forecast, hour, medium, wrap_lines
+from sources.weather import psi_band
 
-CACHE = Path(__file__).resolve().parent.parent / ".cache" / "quip.json"
+CACHE = paths.CACHE / "quip.json"
 MIN_WORDS, MAX_WORDS = 8, 22  # a 5-7-5 haiku in English
 PANEL_W, PANEL_LINES = 400 - 200 - 14 - 8, 7  # default: note.py panel at 3/6, 14 px; note passes its width
 

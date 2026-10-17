@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 from epd import device  # noqa: E402
 from epd.device import EPD, MODE_CALENDAR  # noqa: E402
 from epd.image import to_planes  # noqa: E402
-from screens.common import RED, bold, medium  # noqa: E402
+from layouts.common import RED, bold, medium  # noqa: E402
 
 img = Image.new("RGB", (400, 300), "white")
 d = ImageDraw.Draw(img)

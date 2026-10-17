@@ -1,4 +1,4 @@
-"""Validate data/proverbs.json: 366 unique MM-DD dates (incl. 02-29), unique texts, and every
+"""Validate assets/proverbs.json: 366 unique MM-DD dates (incl. 02-29), unique texts, and every
 entry fits the proverb layout's 2/6 panel with its attribution.
 
   uv run python tools/check_proverbs.py
@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from PIL import Image, ImageDraw  # noqa: E402
 
-from screens import weather_haiku as note, weather_proverb as proverb  # noqa: E402
+from layouts import weather_haiku as note, weather_proverb as proverb  # noqa: E402
 
 
 def main():

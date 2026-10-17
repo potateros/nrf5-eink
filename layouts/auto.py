@@ -10,8 +10,8 @@ import datetime as dt
 
 from PIL import Image
 
-from screens import weather_proverb as proverb, weather_rain as rain
-from screens.common import WET, Forecast
+from layouts import weather_proverb as proverb, weather_rain as rain
+from layouts.common import WET, Forecast
 
 HEAVY = 70        # % chance that counts as "quite a lot" in the afternoon and evening
 RAIN_AHEAD = 6    # hours looked ahead from noon on

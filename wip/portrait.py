@@ -11,10 +11,10 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent))
 import landscape as X  # shared data + helpers
-from epd import icons
+from layouts import icons
 from epd.image import preview
-from screens.at_a_glance import HOLIDAYS, _fit, _when
-from screens.common import RED, battery_meter, bold, hour, icon_mid, medium, rain_bar, rain_ink, text_mid, text_top, wrap
+from layouts.dashboard_glance import HOLIDAYS, _fit, _when
+from layouts.common import RED, battery_meter, bold, hour, icon_mid, medium, rain_bar, rain_ink, text_mid, text_top, wrap
 
 PW, PH = 300, 400
 OUT = X.OUT

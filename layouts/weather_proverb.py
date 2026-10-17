@@ -1,14 +1,15 @@
-"""Layout "weather-proverb": the side-panel dashboard (screens/weather_haiku.py) with a 2/6 panel showing the
-proverb of the day from data/proverbs.json (one per calendar day, 02-29 included)."""
+"""Layout "weather-proverb": the side-panel dashboard (layouts/weather_haiku.py) with a 2/6 panel showing the
+proverb of the day from assets/proverbs.json (one per calendar day, 02-29 included)."""
 import datetime as dt
 import json
-from pathlib import Path
 
 from PIL import Image
 
-from screens import weather, weather_haiku as note
+from eink.paths import ASSETS
+from layouts import weather_haiku as note
+from sources import weather
 
-PROVERBS = Path(__file__).resolve().parent.parent / "data" / "proverbs.json"
+PROVERBS = ASSETS / "proverbs.json"
 MAIN_COLS = 4  # main block = 4 of 6 hourly columns, proverb panel = 2
 
 

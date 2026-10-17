@@ -1,14 +1,14 @@
 """Shared drawing helpers for the 1-bit 400x300 layouts (glance, rain)."""
 import datetime as dt
 from functools import lru_cache
-from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from epd import icons
-from screens.weather import battery_level
+from eink.paths import ASSETS
+from layouts import icons
+from epd.battery import battery_level
 
-FONTS = Path(__file__).resolve().parent.parent / "fonts"
+FONTS = ASSETS / "fonts"
 W, H = 400, 300
 # Red is a signal colour, used only for what you might act on: wet hours (chance >= WET), unhealthy haze, BATT LOW.
 # In a black/white push it thresholds to black (luminance 66 < INK_THRESHOLD), so layouts look unchanged.
@@ -30,7 +30,7 @@ def haze_ink(psi: int):
 
 @lru_cache(maxsize=None)
 def bold(size: int) -> ImageFont.FreeTypeFont:
-    """The TRMNL type system for 1-bit screens (fonts/README.md).
+    """The TRMNL type system for 1-bit screens (assets/fonts/README.md).
 
     TRMNL12/16/21 are pixel fonts that only render cleanly at their native size, so the requested
     size snaps to the nearest one: <= 13 -> 12, 14-18 -> 16, 19-25 -> 21. From 26 px up it's Inter
@@ -193,7 +193,7 @@ def rain_bar(d: ImageDraw.ImageDraw, x: float, y: float, w: float, h: float, pct
 
 
 class Forecast:
-    """Convenience view over the data dict returned by screens.weather.fetch()."""
+    """Convenience view over the data dict returned by sources.weather.fetch()."""
 
     def __init__(self, data: dict, now: dt.datetime):
         om = data["om"]

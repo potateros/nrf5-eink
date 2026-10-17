@@ -102,7 +102,7 @@ black, red = to_planes(img, red=True, dither=False)
 await epd.show(black, red)                # EPD.show already sends both planes and holds 30 s
 ```
 
-`epd.image.preview(img, red=True, dither=False)` shows exactly what the panel gets. Since 2026-10-16 `epd/cli.py` pushes and previews every layout with red (accents for wet hours, haze and battery LOW; see README design decisions).
+`epd.image.preview(img, red=True, dither=False)` shows exactly what the panel gets. Since 2026-10-16 `eink/cli.py` pushes and previews every layout with red (accents for wet hours, haze and battery LOW; see README design decisions).
 
 ## Image slots and carousel
 

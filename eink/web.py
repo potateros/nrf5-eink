@@ -21,12 +21,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-ROOT = Path(__file__).resolve().parent.parent / "web"
-THUMBS = ROOT.parent / "docs" / "images"
+from .paths import CACHE, ROOT, SCREENSHOTS, WEB
+
 HOST, PORT = "127.0.0.1", 8742
 URL = f"http://localhost:{PORT}/"
 IDLE_STOP = 600   # s without a request (open tabs ping every 60 s) before a background server exits
-LOG = ROOT.parent / ".cache" / "web.log"
+LOG = CACHE / "web.log"
 last_seen = time.monotonic()
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
@@ -34,7 +34,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' 
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
-        super().__init__(*a, directory=str(ROOT), **kw)
+        super().__init__(*a, directory=str(WEB), **kw)
 
     def end_headers(self):
         self.send_header("Content-Security-Policy", CSP)
@@ -79,14 +79,14 @@ class Handler(SimpleHTTPRequestHandler):
     def thumb(self, name: str):
         """The README screenshot (docs/images/<name>.png, 2x, from tools/screenshots.py): instant, not live."""
         from . import cli
-        path = THUMBS / f"{name}.png"
+        path = SCREENSHOTS / f"{name}.png"
         if name not in cli.SCREENS or not path.is_file():
             return self.send_error(404, "no screenshot")
         self.send_body(path.read_bytes(), "image/png")
 
     def render(self, name: str):
         from . import cli
-        from .image import preview
+        from epd.image import preview
         cfg = cli.load_config()
         if name not in cli.SCREENS:
             return self.send_error(404, "unknown layout")
@@ -151,8 +151,8 @@ def launch() -> int:
         return 0
     LOG.parent.mkdir(exist_ok=True)
     with LOG.open("a") as log:
-        subprocess.Popen([sys.executable, "-m", "epd.cli", "web", "--no-open", "--idle", str(IDLE_STOP)],
-                         cwd=ROOT.parent, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+        subprocess.Popen([sys.executable, "-m", "eink.cli", "web", "--no-open", "--idle", str(IDLE_STOP)],
+                         cwd=ROOT, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
     for _ in range(50):
         if running():
             open_browser(URL)

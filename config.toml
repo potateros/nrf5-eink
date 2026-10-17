@@ -1,4 +1,4 @@
-# nrf5-eink settings. `uv run python -m epd.cli use <screen>` rewrites the screen line.
+# nrf5-eink settings. `uv run eink use <layout>` rewrites the screen line.
 
 # Layout pushed when no screen is named: weather-glance | weather-rain | weather-haiku | weather-proverb |
 # dashboard-glance | weather-detailed | auto

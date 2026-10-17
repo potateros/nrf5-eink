@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 from epd import device  # noqa: E402
 from epd.device import EPD  # noqa: E402
 from epd.image import to_planes  # noqa: E402
-from screens.common import bold  # noqa: E402
+from layouts.common import bold  # noqa: E402
 
 W, H = 400, 300
 img = Image.new("RGB", (W, H), "white")

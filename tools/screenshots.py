@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from PIL import Image  # noqa: E402
 
-from epd.cli import SCREENS, build, load_config  # noqa: E402
+from eink.cli import SCREENS, build, load_config  # noqa: E402
 from epd.image import preview  # noqa: E402
 
 OUT = ROOT / "docs" / "images"
