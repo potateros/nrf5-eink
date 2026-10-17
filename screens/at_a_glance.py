@@ -1,7 +1,8 @@
-"""Layout "at-a-glance": a 150 px left column (today's date, today's weather, the month) and a 250 px
+"""Layout "at-a-glance": a 140 px left column (today's date, today's weather, the month) and a 260 px
 agenda of the coming days from macOS Calendar (epd/events.py).
 
-The 3:5 split is the owner's 300 | 500 idea scaled to the 400 px panel. There's no shared header:
+The split started as the owner's 300 | 500 idea scaled to 400 px (150 | 250), then narrowed to 140
+so agenda titles fit (130 crams the month grid). There's no shared header:
 the left column carries the date, so the battery meter sits bottom-left (the corner with the most
 room under a 5-6 row month) and the "updated" stamp bottom-right, in 24 h time like the agenda.
 Red: today in the month grid and the agenda's Today heading, Sundays and public holidays, rain >= WET,
@@ -19,11 +20,12 @@ from screens import weather
 from screens.common import (H, RED, W, Forecast, battery_meter, bold, draw_text, icon_mid, medium, rain_ink,
                             text_mid, text_top)
 
-SPLIT = 150     # left column | agenda
+SPLIT = 140     # left column | agenda
 DAYS = 7        # agenda horizon, today included
 EXPORT_DAYS = 35  # exported further ahead so the month grid can mark this month's holidays
 HOLIDAYS = "Holidays in Singapore"  # subscribed calendar: drawn red, like Sundays
 TIME_W = 56     # agenda time column ("all day" / "19:30")
+BULLET_W = 12   # reminder circle sits this far left of the title, in the time column's gutter
 
 
 def _config() -> dict:
@@ -58,9 +60,9 @@ def _left(img, d, fc: Forecast, today: dt.date, holidays: set[int], battery_mv: 
 
     d.line((x, 152, SPLIT - 10, 152), fill="black")
 
-    # month: 7 x 19 px columns, Monday first; Sundays and holidays red, today a red box
+    # month: 7 columns filling the pane (18 px at 140), Monday first; Sundays and holidays red, today a red box
     text_top(d, x, 161, today.strftime("%B %Y"), bold(12))
-    cw, top, rh, gx = 19, 180, 15, x - 2
+    cw, top, rh, gx = (SPLIT - 14) // 7, 180, 15, x - 2
     for c, name in enumerate("MTWTFSS"):
         text_top(d, gx + c * cw + cw / 2, top, name, medium(12), align="m", fill=RED if c == 6 else "black")
     for r, week in enumerate(calendar.Calendar(0).monthdayscalendar(today.year, today.month)):
@@ -123,7 +125,11 @@ def _agenda(d, days: dict[dt.date, list[dict]], today: dt.date, now: dt.datetime
         for e in shown:
             ev_ink = RED if e["calendar"] == HOLIDAYS or e["calendar"] in red_cals else "black"
             text_top(d, x0, y + 3, _when(e), medium(12), fill=RED if e.get("reminder") else ev_ink)
-            text_top(d, x0 + TIME_W, y + 2, _fit(d, e["title"], medium(14), x1 - x0 - TIME_W), medium(14), fill=ev_ink)
+            tx = x0 + TIME_W
+            if e.get("reminder"):
+                # hollow circle, like Reminders' checkbox, in the gutter so titles stay aligned
+                d.ellipse((tx - BULLET_W, y + 3, tx - BULLET_W + 8, y + 11), outline="black")
+            text_top(d, tx, y + 2, _fit(d, e["title"], medium(14), x1 - tx), medium(14), fill=ev_ink)
             y += row_h
         if len(shown) < len(items):
             text_top(d, x0 + TIME_W, y + 3, f"+{len(items) - len(shown)} more", medium(12))
