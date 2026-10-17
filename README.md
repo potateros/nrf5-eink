@@ -7,11 +7,12 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 - **What the board and panel can do (capability matrix):** [docs/CAPABILITIES.md](docs/CAPABILITIES.md)
 - **Device:** `NRF_EPD_5E5D`, a non-public variant of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) firmware (`v1.10-nrf52811`)
 
-## Current state (2026-10-16)
+## Current state (2026-10-17)
 
-- **On the display:** `proverb`, the default: weather + proverb of the day, with rain sparklines, red accents (wet hours, haze) and a battery meter top right.
+- **On the display:** `auto` is the committed default (`rain` when heavy rain is coming, else `proverb`); `config.toml` on this Mac is currently switched to `at-a-glance` (calendar + reminders agenda).
 - **Updates:** homelab-hq pushes every 30 min from 07:00 to 23:00 and wipes at 00:01, just after the firmware's own midnight calendar redraw, so the screen shows a fresh dashboard overnight. If the Mac stops, the firmware's calendar takes over at the next midnight.
-- **Five layouts** to switch between (below). The `note` haiku layout needs `OPENROUTER_API_KEY` in `.env` (present on this Mac).
+- **Six layouts plus `auto`** to switch between (below); `show <name>` switches and pushes in one go. Failed pushes retry once and are logged to `.cache/push.log`.
+- **Work in progress:** full-screen calendar, reminders-only and portrait mockups in [wip/](wip/README.md) (not registered, never pushed). The `note` haiku layout needs `OPENROUTER_API_KEY` in `.env` (present on this Mac).
 - **Known limits:** no live clock (see below), battery % is an estimate (the firmware measures the regulated rail), the firmware's 15 image slots remain undiscovered.
 
 ## Available dashboards
@@ -231,7 +232,8 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 - [ ] Switch layouts from the hq TUI (per-job action calling `epd.cli use <name>`)
 - [ ] Time-aware layout (C): after ~6 pm put tomorrow in focus
 - [x] Retest red uploads: red works (2026-10-16). Next: use it in layouts (rain bars, haze alert)
-- [ ] Rotating screens: agenda (macOS Calendar / ICS), month calendar, fun slot
+- [x] Agenda from macOS Calendar + dated reminders: `at-a-glance` (2026-10-17)
+- [ ] Promote a WIP mockup ([wip/](wip/README.md)): two-column agenda (c2), reminders (r1), or go portrait (p1-p4)
 - [ ] Haze alert screen: full-screen warning if PSI > 300
 - [ ] Clock options (see "Why there's no live clock"): firmware clock mode at night only, or partial refresh if custom firmware ever becomes safe to flash
 - [ ] Fun slots: bus/MRT arrivals (LTA DataMall key), dithered photo, xkcd, GitHub contributions, quote of the day, a Claude-written daily summary
