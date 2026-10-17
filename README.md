@@ -16,7 +16,7 @@ The Mac renders screens with Pillow and pushes them over BLE. The display itself
 
 ## Available dashboards
 
-Switch with `uv run python -m epd.cli use <name>` (then `--push`, or wait for the next scheduled push). `list` shows the current one.
+Switch with `uv run python -m epd.cli use <name>` (takes effect on the next scheduled push), or `show <name>` to switch and push now. `list` shows the current one.
 
 | `proverb`: weather + proverb of the day (default) | `note`: weather + LLM haiku |
 | --- | --- |
@@ -38,6 +38,7 @@ uv run python -m epd.cli --push                  # push the current layout (conf
 uv run python -m epd.cli --push --wipe           # full clear first (~70 s); ~once a day for ghosting
 uv run python -m epd.cli list                    # layouts; * marks the current one
 uv run python -m epd.cli use rain                # switch the current layout (takes effect on the next push)
+uv run python -m epd.cli show rain               # switch the current layout and push it now (~40 s)
 uv run python -m epd.cli rain --preview out.png  # render any layout without pushing (--bat 2800 to show BATT LOW)
 uv run python tools/info.py                      # what the device reports (config, battery, clock)
 uv run python tools/testcard.py                  # black/white test card
@@ -127,7 +128,7 @@ The command centre (separate project, see below) drives this repo only through t
 | Scheduled push | `uv run python -m epd.cli --push` (exit 0 = pushed; non-zero = failed; one summary line on stdout) |
 | Daily ghosting wipe | `uv run python -m epd.cli --push --wipe` |
 | List layouts / current | `uv run python -m epd.cli list` (`*` marks current) |
-| Change layout | `uv run python -m epd.cli use <name>`, optionally followed by a push to apply it immediately |
+| Change layout | `uv run python -m epd.cli use <name>` (next push), or `show <name>` to switch and push immediately |
 
 ## Code
 
@@ -175,6 +176,7 @@ Pushes are scheduled by **homelab-hq** (`~/Developer/potateros/homelab-hq`), the
 - `hq status` shows last and next runs, `hq logs eink-weather` shows push output (`pushed proverb (battery … mV …)`), and `hq run eink-weather --manual` pushes now.
 - **One Bluetooth connection at a time:** a manual push or experiment while a scheduled push is running will make one of them fail. For longer manual sessions, use `hq hold eink-weather` first and `hq resume eink-weather` after.
 - **Bluetooth permission:** under launchd, macOS asks on behalf of `bun` (hq's runner), not your terminal. If pushes fail with `Bluetooth access is denied by the user`, allow `~/.bun/bin/bun` in System Settings → Privacy & Security → Bluetooth. Upgrading bun may need the grant again. It's granted on this Mac as of 2026-10-16.
+- **Failed pushes** (device out of range, asleep between adverts, another app connected, link dropped) are retried once if nothing reached the panel yet (scan/connect), then the run exits 1 with a one-line reason, e.g. `push failed: device not found (…): out of range, between adverts, or another app is connected`, so hq shows FAULT. Every attempt is logged to `.cache/push.log` (CSV: time, layout, ok/fail, stage reached, RSSI dBm, attempt, seconds, reason), and successful pushes print the signal strength (`signal -81 dBm`; "weak" below -85). If failures pile up, compare their RSSI with the good ones to see whether it's distance.
 - The Mac must stay awake (display sleep is fine). If pushes stop, the midnight calendar fallback takes over.
 
 ## How a push works
@@ -206,6 +208,7 @@ The display can't detect staleness itself. But the firmware redraws its own cale
 - **Fonts: the TRMNL type system** ([fonts/](fonts/README.md), SIL OFL, from the [TRMNL framework](https://github.com/usetrmnl/trmnl-framework)). TRMNL12/16/21 Bold are pixel fonts drawn for 1-bit screens and used at their native sizes only; `bold(size)` snaps to 12/16/21, and from 26 px up it uses Inter Bold. History: Helvetica broke up without anti-aliasing, Menlo was rejected as monospace, Verdana looked too wide and heavy, so we matched what [TRMNL uses on 1-bit screens](https://trmnl.com/framework/docs/3.4/font_family). Weights: **bold** only for numbers, the date and the condition; **medium** (`medium(size)`) for body text and labels: **NicoClean**, TRMNL's classic body pixel font, evenly weighted and between TRMNL Regular (too thin) and Bold (too heavy); clean at 14–16 px, with TRMNL12 Bold for 12 px labels. Rejected along the way: a 1-px double-strike "medium" (uneven: thick verticals, thin curves) and Monaspace Argon (outline font, so strokes snap unevenly at 1 bit). Rendered with anti-aliasing off. The `detailed` layout still uses Helvetica Bold + Menlo.
 - The condition in `glance` wraps onto two lines at 21 px instead of shrinking, so it stays the most prominent text in its column; NEA's "(Day)/(Night)" suffix is dropped (the icon shows it).
 - **Alignment is computed, not eyeballed:** `text_mid` centres text on its cap height, `text_top` puts the cap top on a line, `icon_mid` centres icon boxes. Rows share a centre line, and the header shares a baseline.
+- Hourly slots sit on even hours (10am, 12pm, 2pm…), and the rain chart labels 12am/6am/12pm/6pm (owner, 2026-10-17). `glance` keeps 3 h steps, so it starts on the next hour.
 - Weather first. Air quality appears whenever PSI is above "Good" (> 50), in red once "Unhealthy" (> 100); it used to be > 100 only, lowered so the owner can track the October 2026 haze (owner, 2026-10-17). The battery meter is always shown, top right (owner, 2026-10-16). Exception: `at-a-glance` has no header, so its meter sits bottom-left, the emptiest corner (owner, 2026-10-17).
 - `at-a-glance` (owner, 2026-10-17): a 140 | 260 split (the 300 | 500 idea scaled to 400 px, then narrowed from 150 so titles fit; 130 cramped the month grid); an agenda, not a schedule (no time grid, empty days skipped); 24 h times; Sundays red rather than shaded (the panel has no grey, and a dot pattern broke up the digits); red also marks today and holidays, a deliberate step beyond red-as-signal for this layout; only accepted invites.
 - Header is black on white with a rule underneath (white-on-black was hard to read). The update time is a small two-line "last updated" stamp, not a clock.

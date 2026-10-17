@@ -171,6 +171,8 @@ class Forecast:
         self.cur, self.hourly, self.daily = om["current"], om["hourly"], om["daily"]
         self.times = [dt.datetime.fromisoformat(t) for t in self.hourly["time"]]
         self.start = next(i for i, t in enumerate(self.times) if t > now)  # first future hour
+        # first future even hour: 2-hourly slots read 10am, 12pm, 2pm... (owner, 2026-10-17)
+        self.even = next(i for i in range(self.start, len(self.times)) if self.times[i].hour % 2 == 0)
         self._sun = list(zip((dt.datetime.fromisoformat(s) for s in self.daily["sunrise"]),
                              (dt.datetime.fromisoformat(s) for s in self.daily["sunset"])))
         self.place = data.get("nowcast", ("Singapore",))[0]

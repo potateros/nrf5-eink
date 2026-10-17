@@ -3,14 +3,17 @@
   uv run python -m epd.cli --push                      # push the screen set in config.toml
   uv run python -m epd.cli rain --preview out.png      # render a specific screen
   uv run python -m epd.cli use rain                    # switch the default screen
+  uv run python -m epd.cli show rain                   # switch the default screen and push it now
   uv run python -m epd.cli list                        # available screens (* = current)
 """
 import argparse
+import csv
 import datetime as dt
 import asyncio
 import importlib
 import re
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -74,10 +77,60 @@ def build(name: str, cfg: dict, battery_mv: int | None = None) -> Image.Image:
     return mod.render(mod.fetch(cfg["lat"], cfg["lon"]), battery_mv=mv)
 
 
-async def push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
+PUSH_LOG = BATTERY_LOG.parent / "push.log"
+RETRY_STAGES = {"scan", "connect"}  # nothing reached the panel yet, so trying again is harmless
+RETRY_WAIT = 10   # s; the tag advertises intermittently
+WEAK_RSSI = -85   # dBm; below this, uploads start to drop
+
+
+def log_push(name: str, outcome: str, e, attempt: int, secs: float, detail: str = ""):
+    """One CSV row per attempt in .cache/push.log: time, layout, ok/fail, stage reached, RSSI (dBm),
+    attempt, seconds, detail. RSSI over time shows whether failures track distance."""
+    PUSH_LOG.parent.mkdir(exist_ok=True)
+    with PUSH_LOG.open("a", newline="") as f:
+        csv.writer(f).writerow([f"{dt.datetime.now():%Y-%m-%dT%H:%M:%S}", name, outcome, e.stage,
+                                "" if e.rssi is None else e.rssi, attempt, round(secs), detail])
+
+
+def explain(exc: BaseException, stage: str) -> str:
+    """A one-line reason for the hq dashboard (its last log line)."""
+    from bleak.exc import BleakBluetoothNotAvailableError
+    from .device import DeviceNotFound
+    if isinstance(exc, BleakBluetoothNotAvailableError):
+        return f"Bluetooth unavailable on this Mac ({exc.args[0] if exc.args else exc}); under launchd, check bun's Bluetooth permission"
+    if isinstance(exc, DeviceNotFound):
+        return f"device not found ({exc}): out of range, between adverts, or another app is connected"
+    if stage == "connect":
+        return f"found the device but couldn't connect ({type(exc).__name__}: {exc}): weak signal or busy"
+    return f"connection lost during {stage} ({type(exc).__name__}: {exc}): weak signal or the device reset"
+
+
+def run_push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
+    """push() with failure handling: log every attempt, retry once if it failed before anything
+    reached the panel, and exit 1 with a readable reason so hq marks the run FAULT."""
+    from bleak.exc import BleakBluetoothNotAvailableError
+    from .device import EPD
+    for attempt in (1, 2):
+        e, t0 = EPD(), time.monotonic()
+        try:
+            img = asyncio.run(push(name, cfg, wipe, e))
+            log_push(name, "ok", e, attempt, time.monotonic() - t0)
+            return img
+        except Exception as exc:
+            reason = explain(exc, e.stage)
+            log_push(name, "fail", e, attempt, time.monotonic() - t0, reason)
+            if attempt == 1 and e.stage in RETRY_STAGES and not isinstance(exc, BleakBluetoothNotAvailableError):
+                print(f"push attempt 1 failed: {reason}; retrying in {RETRY_WAIT} s")
+                time.sleep(RETRY_WAIT)
+                continue
+            print(f"push failed: {reason}" + (f" (signal {e.rssi} dBm)" if e.rssi is not None else ""))
+            sys.exit(1)
+
+
+async def push(name: str, cfg: dict, wipe: bool, e) -> Image.Image | None:
     """Connect first so the frame can show the battery level the device just reported."""
-    from .device import EPD, MODE_CALENDAR, WIPE_SECONDS
-    async with EPD() as e:
+    from .device import MODE_CALENDAR, WIPE_SECONDS
+    async with e:
         mv = int(e.info["bat"]) if "bat" in e.info else None
         if mv:
             log_battery(mv)
@@ -99,20 +152,23 @@ async def push(name: str, cfg: dict, wipe: bool) -> Image.Image | None:
         await e.show(black, red, wipe=wipe)
         await e.arm_fallback(MODE_CALENDAR)
         await asyncio.sleep(2)
-    print(f"pushed {name} (battery {mv} mV, clock drift {drift if drift is None else round(drift)}s), "
+    signal = f"signal {e.rssi} dBm" + (" weak" if e.rssi is not None and e.rssi < WEAK_RSSI else "")
+    print(f"pushed {name} (battery {mv} mV, {signal}, clock drift {drift if drift is None else round(drift)}s), "
           "fallback armed for midnight")
     return img
 
 
 def main():
     cfg = load_config()
-    if len(sys.argv) > 1 and sys.argv[1] in ("use", "list"):
-        if sys.argv[1] == "use":
+    if len(sys.argv) > 1 and sys.argv[1] in ("use", "show", "list"):
+        if sys.argv[1] in ("use", "show"):
             if len(sys.argv) < 3:
-                raise SystemExit("usage: use <screen>")
+                raise SystemExit(f"usage: {sys.argv[1]} <screen>")
             name = resolve(sys.argv[2], cfg)
             set_screen(name)
             print(f"default screen: {name}")
+            if sys.argv[1] == "show":  # use + push in one go
+                run_push(name, cfg | {"screen": name}, wipe=False)
         else:
             for name, (_, desc) in SCREENS.items():
                 print(f"{'*' if name == cfg['screen'] else ' '} {name:11} {desc}")
@@ -129,7 +185,7 @@ def main():
     args = ap.parse_args()
     cfg |= {k: v for k, v in (("lat", args.lat), ("lon", args.lon)) if v is not None}
     name = resolve(args.screen, cfg)
-    img = asyncio.run(push(name, cfg, args.wipe)) if args.push else build(name, cfg, battery_mv=args.bat)
+    img = run_push(name, cfg, args.wipe) if args.push else build(name, cfg, battery_mv=args.bat)
     if args.preview and img:
         preview(img, red=True, dither=False).save(args.preview)
         print("wrote", args.preview)

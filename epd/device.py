@@ -21,6 +21,11 @@ CFG_DISPLAY_MODE = 11  # byte offset of display_mode in epd_config_t
 MODE_PICTURE, MODE_CALENDAR, MODE_CLOCK = 0, 1, 2
 
 
+class DeviceNotFound(RuntimeError):
+    """The scan ended without seeing the tag: out of range, between its intermittent adverts, or
+    already connected to another central (it stops advertising then)."""
+
+
 def _tz_hours() -> int:
     return (-time.altzone if time.localtime().tm_isdst else -time.timezone) // 3600
 
@@ -34,6 +39,8 @@ class EPD:
         self.messages: list[bytes] = []
         self.mtu = 20
         self.rle = False
+        self.stage = "scan"      # how far a push got: scan, connect, upload, refresh, config (for failure logs)
+        self.rssi: int | None = None  # signal strength of the advert we connected from, dBm
 
     async def __aenter__(self):
         await self.connect()
@@ -44,13 +51,18 @@ class EPD:
             await self.client.disconnect()
 
     async def connect(self, timeout: float = 45):
-        dev = await BleakScanner.find_device_by_filter(
-            lambda d, a: (self.address and d.address == self.address)
-            or (a.local_name or "").startswith(self.name_prefix),
-            timeout=timeout,
-        )
+        self.stage = "scan"
+
+        def match(d, a):
+            hit = bool((self.address and d.address == self.address) or (a.local_name or "").startswith(self.name_prefix))
+            if hit:
+                self.rssi = a.rssi
+            return hit
+
+        dev = await BleakScanner.find_device_by_filter(match, timeout=timeout)
         if not dev:
-            raise RuntimeError(f"no device matching {self.name_prefix!r}")
+            raise DeviceNotFound(f"no {self.name_prefix} advert in a {timeout:.0f} s scan")
+        self.stage = "connect"
         self.client = BleakClient(dev)
         await self.client.connect()
         await self.client.start_notify(CHAR, lambda _, b: self.messages.append(bytes(b)))
@@ -100,17 +112,20 @@ class EPD:
             # CLEAR is the only reliable wipe (a built-in calendar redraw leaves a mess). It blocks the
             # firmware for 20+ s, during which writes are acked by the BLE stack but never applied,
             # so wait until the app itself answers again instead of trusting a fixed delay.
+            self.stage = "wipe"
             await self.clear()
             await asyncio.sleep(WIPE_SECONDS)  # don't send INIT earlier: it resets the panel mid-refresh
             await self.wait_ready()
         else:
             await self.wait_ready()
+        self.stage = "upload"
         if self.invert:
             black = bytes(b ^ 0xFF for b in black)
         await self._write_plane(black, red=False)
         # Always rewrite the red RAM too (0xFF = no red): this is a B/W/R panel, and a stale red RAM
         # shows through as a red overlay unless CLEAR wiped it first.
         await self._write_plane(red if red is not None else b"\xff" * len(black), red=True)
+        self.stage = "refresh"
         await self._write(bytes([CMD_REFRESH]))
         # Disconnecting powers the panel down; doing that mid-refresh freezes it on a black phase.
         await asyncio.sleep(REFRESH_SECONDS)
@@ -122,6 +137,7 @@ class EPD:
         view at the next trigger (calendar: local midnight). Every push re-arms this, so the
         built-in date view only appears if pushes stop.
         """
+        self.stage = "config"
         cfg = bytearray(self.config or b"")
         if len(cfg) <= CFG_DISPLAY_MODE:
             raise RuntimeError(f"unexpected config {cfg.hex()}")

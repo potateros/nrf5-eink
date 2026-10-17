@@ -117,7 +117,7 @@ def _panel(d, text: str, by: str | None, split: int, keep_breaks: bool):
 
 def _hourly(img, d, fc: Forecast):
     for n in range(COLS):
-        i, cx = fc.start + 2 * n, COL_W * n + COL_W / 2
+        i, cx = fc.even + 2 * n, COL_W * n + COL_W / 2
         t = fc.times[i]
         text_mid(d, cx, 175, hour(t), medium(14), align="m")
         icon_mid(img, icons.wmo(fc.hourly["weather_code"][i])[1], cx, 193, 22, night=fc.night(t))

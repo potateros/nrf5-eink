@@ -13,6 +13,7 @@ uv run python -m epd.cli <layout> --preview out.png   # render without the devic
 uv run python -m epd.cli --push                       # push current layout from config.toml (~40 s)
 uv run python -m epd.cli --push --wipe                # full CLEAR first (~70 s), ~once a day for ghosting
 uv run python -m epd.cli list | use <layout>          # list / switch layouts (rewrites config.toml)
+uv run python -m epd.cli show <layout>                # use + push in one go
 uv run python tools/info.py                           # device config, battery, clock drift (read-only)
 uv run python tools/screenshots.py                    # regenerate docs/images/*.png for the README
 ```
@@ -41,7 +42,7 @@ Pipeline: `screens/weather.fetch()` → `screens/<layout>.render()` → `epd.ima
 - After `CLEAR`, wait ~25 s before `INIT` (INIT hardware-resets the panel). `SET_TIME` forces an asynchronous built-in redraw, so don't upload within ~25 s of it, and it's not a valid wipe.
 - Every push ends with `SET_CONFIG` setting display_mode = calendar: a dead-man fallback so the firmware's own calendar replaces a stale forecast at local midnight. Read the 14-byte config first and change only byte 11.
 - Never pass a model id to `INIT` (it's persisted). Avoid `0x92` (sys sleep; wake-up pin is `0xFF`), `0x99` (config erase; defaults lack model `0x16`), raw `0x00` SET_PINS, and DFU. The firmware is a non-public variant.
-- The device accepts one BLE central at a time, and it advertises intermittently (scans up to 45 s).
+- The device accepts one BLE central at a time, and it advertises intermittently (scans up to 45 s). `epd.cli.run_push` wraps every push: retries once on scan/connect failures, logs each attempt (stage reached, RSSI) to `.cache/push.log`, and exits 1 with a readable reason.
 - Battery `bat=` is the ~3.0 V rail, not the Li-ion cell. Show it as an estimated `~NN%` from the firmware's own curve (`screens.weather.battery_pct`, same as the built-in calendar's glyph), red + LOW below 30 %. Every push logs the reading to `.cache/battery.csv`; previews reuse the last one.
 
 ## Rendering rules

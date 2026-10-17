@@ -42,7 +42,7 @@ def render(data: dict, now: dt.datetime | None = None, battery_mv: int | None = 
             break
         d.rectangle((gx + k * bw + 1, gy + gh - gh * fc.rain(i) / 100, gx + (k + 1) * bw - 2, gy + gh),
                     fill=rain_ink(fc.rain(i)))
-        if k % 6 == 0:
+        if fc.times[i].hour % 6 == 0:  # labels on 12am/6am/12pm/6pm, wherever the chart starts
             text_top(d, gx + k * bw, gy + gh + 6, hour(fc.times[i]), bold(12))
     d.line((0, 254, 400, 254), fill="black")
 

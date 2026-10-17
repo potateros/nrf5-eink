@@ -142,7 +142,7 @@ def render(data: dict, w: int = 400, h: int = 300, now: dt.datetime | None = Non
     y1 = y0 + S(82)
     d.line((0, y1, w, y1), fill="black", width=1)
     times = [dt.datetime.fromisoformat(t) for t in hourly["time"]]
-    start = next(i for i, t in enumerate(times) if t > now)
+    start = next(i for i, t in enumerate(times) if t > now and t.hour % 2 == 0)  # even hours only
     idx = [start + 2 * n for n in range(8) if start + 2 * n < len(times)]
     col = w / len(idx)
     for n, i in enumerate(idx):
