@@ -48,11 +48,17 @@ def _export(days: int) -> dict:
     _build()
     with tempfile.TemporaryDirectory() as tmp:
         out, err = Path(tmp) / "out.json", Path(tmp) / "err.txt"  # `open --stdout` appends, so use fresh files
-        subprocess.run(["open", "-W", "-n", "--stdout", str(out), "--stderr", str(err), str(APP), "--args", str(days)],
-                       check=True, timeout=150)
-        if not out.exists() or not out.read_text().strip():
-            raise RuntimeError(err.read_text().strip() if err.exists() else "calendar export wrote nothing")
-        return json.loads(out.read_text())
+        # No check=True: when the export finishes before `open -W` attaches to it, open exits 1 with
+        # "Unable to block on applications (kevent() failed: No such process)" although the export
+        # completed. The output file is the real verdict.
+        r = subprocess.run(["open", "-W", "-n", "--stdout", str(out), "--stderr", str(err), str(APP),
+                            "--args", str(days)], capture_output=True, text=True, timeout=150)
+        text = out.read_text() if out.exists() else ""
+        try:
+            return json.loads(text)
+        except ValueError:
+            app_err = err.read_text().strip() if err.exists() else ""
+            raise RuntimeError(app_err or r.stderr.strip() or f"calendar export wrote nothing (open exit {r.returncode})")
 
 
 def fetch(days: int = 7) -> dict:
