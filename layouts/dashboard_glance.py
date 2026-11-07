@@ -42,7 +42,13 @@ def fetch(lat: float, lon: float) -> dict:
 
 def _left(img, d, fc: Forecast, today: dt.date, holidays: set[int], battery_mv: int | None):
     x = 10
-    text_top(d, x, 10, today.strftime("%A"), bold(16))
+    # weekday left, ISO week number right-aligned on the same line; "Wednesday" doesn't fit beside it
+    week = f"W{today.isocalendar().week}"
+    text_top(d, SPLIT - 10, 10, week, bold(16), align="r")
+    name = today.strftime("%A")
+    if x + d.textlength(name, font=bold(16)) > SPLIT - 10 - d.textlength(week, font=bold(16)) - 6:
+        name = today.strftime("%a")
+    text_top(d, x, 10, name, bold(16))
     # big day number with month over year beside it, filling its cap height (32-68). Stacked
     # because "28" + "Oct 2026" on one line is wider than the column.
     text_top(d, x, 32, str(today.day), bold(48))
