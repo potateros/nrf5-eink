@@ -25,6 +25,10 @@ Last updated: 2026-10-17 (slot/carousel opcodes found in the myetoys web tool, �
 | Temperature sensor | The panel controller's built-in sensor (SSD16xx: update `0xB1`, then read reg `0x1B`). Upstream reads it at every built-in redraw and prints it only in clock mode, as `19℃[5E5D]` (°C + last 4 chars of the BLE name). The seller's photo shows exactly that. Not reported over BLE | [source] / [online] photo |
 | Debug | No SWD probe attached; all access over BLE | — |
 
+### 1.1 Board and panel interface
+
+Moved to **[HARDWARE.md](HARDWARE.md)** (2026-11-17): teardown photo and board map, the panel's 4-wire SPI interface and pins, the 24-pin FPC, the booster, the SPI command sequence that draws a frame, and how to swap the nRF52811 for an ESP32. In short: **4-wire SPI, not I2C** (firmware drives BS low [source]); 24-pin ZIF ribbon [verified photo]; booster on the driver board [verified photo].
+
 ## 2. Firmware
 
 A **non-public variant** of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5). It matches neither upstream nor any fork we checked (incl. [YCD12/EPD-nRF5_DYC](https://github.com/YCD12/EPD-nRF5_DYC)).
@@ -239,7 +243,7 @@ In both cases a normal push afterwards worked fine, so the probes did no lasting
 | The only self-updating time is clock mode (built-in layout, full refresh every minute) | [source] |
 | Upstream "partial" code (`PTIN`/`PTL`/`PTOUT` in UC81xx.c) only windows RAM *writes*; refreshes are always full-screen | [source] |
 | [zhyiheihei/EPD-nRF5](https://github.com/zhyiheihei/EPD-nRF5) adds `UC81xx_RefreshPartial` (PTIN + `PT_SCAN=1` window + DRF, ~4 s waveform, BUSY not released on their BWR panel) behind a custom dashboard protocol (`0x40`–`0x46`). It's custom firmware for a 7.5" UC8179, so not usable here without flashing | [online] |
-| Partial refresh via raw `SEND_CMD`/`SEND_DATA` from the host is untested on this unit (our earlier raw probes were invalidated by the cut-short-refresh bug, §5.3) | [open] |
+| Partial refresh via raw `SEND_CMD`/`SEND_DATA` from the host is untested on this unit (our earlier raw probes were invalidated by the cut-short-refresh bug, §5.3). Feasibility and limits (black/white only): HARDWARE.md §6.6 | [open] |
 | Decision (owner): no live clock. The dashboards show a small "last updated" stamp instead | — |
 
 ### 6.1 Clock

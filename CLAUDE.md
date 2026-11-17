@@ -61,4 +61,4 @@ Packages, by job (any package may import `eink/paths.py`; otherwise dependencies
 
 ## Docs
 
-`docs/DEVICE.md` is a living reference: record every new device finding there, tagged [verified] / [source] / [online] / [open]. Update README.md when layouts, commands or design decisions change.
+`docs/HARDWARE.md` covers the layer under BLE (board photo and map, panel SPI pins and command sequence, ESP32 swap); hardware findings go there, firmware/BLE ones in DEVICE.md. `docs/DEVICE.md` is a living reference: record every new device finding there, tagged [verified] / [source] / [online] / [open]. Update README.md when layouts, commands or design decisions change.

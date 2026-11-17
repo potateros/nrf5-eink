@@ -4,6 +4,7 @@ A TRMNL-style dashboard for a cheap 4.2" Bluetooth e-ink tag (nRF52811, 400×300
 The Mac renders screens with Pillow and pushes them over BLE. The display itself is passive.
 
 - **Device reference (hardware, firmware, BLE protocol, quirks):** [docs/DEVICE.md](docs/DEVICE.md)
+- **Board teardown, panel SPI interface and command sequence, ESP32 replacement guide:** [docs/HARDWARE.md](docs/HARDWARE.md)
 - **What the board and panel can do (capability matrix):** [docs/CAPABILITIES.md](docs/CAPABILITIES.md)
 - **Device:** `NRF_EPD_5E5D`, a non-public variant of [tsl0922/EPD-nRF5](https://github.com/tsl0922/EPD-nRF5) firmware (`v1.10-nrf52811`)
 
